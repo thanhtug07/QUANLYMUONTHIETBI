@@ -1,0 +1,17 @@
+[theme]
+base = "light"
+primaryColor = "#0054A3"
+backgroundColor = "#F0F2F6"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#31333F"
+font = "sans serif"
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false
+
+[client]
+# Navigation tự vẽ bằng component riêng (ui/sidebar.py)
+showSidebarNavigation = false

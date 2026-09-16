@@ -1,0 +1,25 @@
+device_id,device_name,category,status
+TB001,Laptop Dell Latitude,Laptop,borrowed
+TB002,Laptop HP ProBook,Laptop,borrowed
+TB003,Laptop Asus Zenbook,Laptop,borrowed
+TB004,Laptop Dell Latitude,Laptop,borrowed
+TB005,May chieu Epson X05,May chieu,borrowed
+TB006,May chieu Panasonic PT,May chieu,borrowed
+TB007,May chieu Epson X05,May chieu,maintenance
+TB008,May chieu Panasonic PT,May chieu,maintenance
+TB009,Tablet iPad 9,Tablet,lost
+TB010,Tablet Samsung Tab A8,Tablet,borrowed
+TB011,Tablet iPad 9,Tablet,borrowed
+TB012,Tablet Samsung Tab A8,Tablet,borrowed
+TB013,Man hinh Dell 24,Man hinh,borrowed
+TB014,Man hinh LG 27,Man hinh,available
+TB015,Man hinh Dell 24,Man hinh,available
+TB016,Man hinh LG 27,Man hinh,available
+TB017,Camera Sony HDR,Camera,available
+TB018,Camera Canon XF,Camera,borrowed
+TB019,Camera Sony HDR,Camera,borrowed
+TB020,Camera Canon XF,Camera,borrowed
+TB021,Chuot Logitech MX,Phu kien,borrowed
+TB022,Ban phim Keychron K3,Phu kien,borrowed
+TB023,Chuot Logitech MX,Phu kien,borrowed
+TB024,Ban phim Keychron K3,Phu kien,lost

@@ -1,0 +1,24 @@
+# Môi trường ảo / cache Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Dữ liệu sinh ra khi chạy pipeline (report.txt được tạo lại bằng `python main.py`)
+output/
+
+# Trình quản lý dữ liệu nhạy cảm của Streamlit
+.streamlit/secrets.toml
+
+# Artefact QA / preview của công cụ hỗ trợ lập trình
+.freebuff/
+.agents/
+.claude/
+
+# Hệ điều hành / IDE
+Thumbs.db
+.DS_Store
+.idea/
+.vscode/

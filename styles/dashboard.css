@@ -1,0 +1,1233 @@
+/* =====================================================================
+   QUẢN LÝ MƯỢN THIẾT BỊ — DASHBOARD STYLES
+   ---------------------------------------------------------------------
+   Mọi giá trị trực quan dùng biến CSS sinh từ `styles/tokens.py`
+   (xem ui/layout.inject_global_styles) — không hardcode màu/spacing/radius
+   trong file này.
+
+   Cấu trúc:
+     01. Fonts & base
+     02. Streamlit chrome (header, container, card)
+     03. App topbar
+     04. Page header
+     05. Filter toolbar & widgets
+     06. KPI cards
+     07. Card titles / chips / footers
+     08. Charts
+     09. Table
+     10. Alerts & rank list
+     11. Sidebar
+     12. States (empty / error)
+     13. Focus & accessibility
+     14. Responsive
+   ===================================================================== */
+
+/* Lưu ý: @import font được inject từ styles/tokens.py (FONT_URL) để chỉ có
+   một nguồn định nghĩa duy nhất — xem ui/layout.inject_global_styles. */
+
+/* ---------- 01. BASE ---------- */
+html,
+body,
+.stApp,
+[data-testid="stAppViewContainer"] {
+  font-family: var(--font-family);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+h1, h2, h3, h4, h5, p, span, div, li, strong {
+  font-family: var(--font-family);
+}
+
+svg { max-width: 100%; }
+.icon { display: inline-block; vertical-align: middle; flex: 0 0 auto; }
+
+/* ---------- 01b. PAGE TRANSITION ----------
+   Chuyển trang (sidebar/query param) rerun toàn bộ main content; animation
+   0.24s fade + translateY làm cảm giác "app đổi view" thay vì trang tải lại.
+   animation: both giữ trạng thái cuối, không lặp lại khi widget tự rerun
+   (chỉ chạy lại khi phần tử DOM được dựng mới = đúng lúc đổi trang). */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+[data-testid="stAppViewContainer"] main > div:first-of-type > div:not([data-testid="stSidebar"]) > div,
+[data-testid="stMain"] > div:first-of-type > div:not([data-testid="stSidebar"]) > div {
+  animation: page-enter var(--motion-slow) var(--easing-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-testid="stAppViewContainer"] main > div:first-of-type > div:not([data-testid="stSidebar"]) > div,
+  [data-testid="stMain"] > div:first-of-type > div:not([data-testid="stSidebar"]) > div {
+    animation: none;
+  }
+}
+
+/* ---------- 01c. KPI STAGGER ----------
+   KPI xuất hiện tuần tự (opacity + translateY nhẹ) khi dashboard load.
+   Không bay từ nhiều hướng, không delay dài — mỗi card lệch nhau 60ms. */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.kpi-grid .kpi-card {
+  animation: rise-in var(--motion-slow) var(--easing-out) both;
+}
+.kpi-grid .kpi-card:nth-child(2) { animation-delay: 60ms; }
+.kpi-grid .kpi-card:nth-child(3) { animation-delay: 120ms; }
+.kpi-grid .kpi-card:nth-child(4) { animation-delay: 180ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .kpi-grid .kpi-card { animation: none; }
+}
+
+/* ---------- 02. STREAMLIT CHROME ---------- */
+[data-testid="stDecoration"] { display: none; }
+[data-testid="stToolbar"] { display: none; }
+[data-testid="stHeader"] { background: transparent; }
+.block-container,
+[data-testid="stMainBlockContainer"] {
+  padding-top: var(--spacing-md) !important;
+  padding-left: var(--spacing-3xl) !important;
+  padding-right: var(--spacing-3xl) !important;
+  padding-bottom: var(--spacing-3xl) !important;
+  max-width: 1560px;
+  margin: 0 auto;
+}
+
+/* Card dùng chung: mọi st.container(border=True).
+   Streamlit dựng border trực tiếp trên phần tử stVerticalBlock và bọc nó
+   trong stLayoutWrapper -> đây là selector ổn định để tạo hệ card thống nhất. */
+[data-testid="stLayoutWrapper"] > [data-testid="stVerticalBlock"] {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-subtle);
+  padding: var(--spacing-xl) !important;
+}
+
+[data-testid="stVerticalBlock"] { gap: var(--spacing-md); }
+
+/* Khoảng cách giữa các CỘT (st.columns): Streamlit 1.63 mặc định chỉ ~8px
+   (theme baseGap) làm các card cạnh nhau gần chạm nhau -> chuẩn hoá theo
+   spacing token để grid 8/4, 3 alert card và hai panel đều thở đều nhau. */
+[data-testid="stHorizontalBlock"] { gap: var(--spacing-lg) !important; }
+[data-testid="stColumn"] { min-width: 0; }
+
+/* Nav tự động của Streamlit (sinh ra vì thư mục `pages/` là module nghiệp vụ,
+   không phải bộ page riêng của Streamlit) — đã có sidebar điều hướng riêng
+   nên ẩn danh sách này để không xuất hiện menu trùng lặp. */
+[data-testid="stSidebarNav"],
+[data-testid="stSidebarNavItems"] { display: none !important; }
+
+/* Toolbar bộ lọc: các cột tự xuống dòng khi hẹp, nhưng vẫn đủ chỗ để nút
+   "Đặt lại" nằm cùng hàng trên desktop (min-width nhỏ hơn để không đẩy xuống). */
+[class*="_filter_row"] [data-testid="stHorizontalBlock"] {
+  flex-wrap: wrap;
+  row-gap: var(--spacing-md);
+}
+[class*="_filter_row"] [data-testid="stColumn"] { min-width: 148px; }
+
+/* ---------- 03. APP TOPBAR ---------- */
+.app-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-subtle);
+  padding: var(--spacing-md) var(--spacing-xl);
+  margin-bottom: var(--spacing-lg);
+}
+
+.app-topbar .brand { display: flex; align-items: center; gap: var(--spacing-md); }
+
+.brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+}
+
+.brand-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.brand-name { font-size: 16px; font-weight: 700; color: var(--color-text); white-space: nowrap; }
+.brand-sub { font-size: 12px; font-weight: 400; color: var(--color-text-muted); }
+
+.app-topbar .topbar-right { display: flex; align-items: center; gap: var(--spacing-md); }
+
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+}
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: var(--spacing-xs) var(--spacing-md) var(--spacing-xs) var(--spacing-xs);
+  background: var(--color-surface);
+}
+
+.user-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--color-primary-tint);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 26px;
+}
+
+.user-name { font-size: 14px; font-weight: 600; color: var(--color-text); white-space: nowrap; }
+
+/* ---------- 04. PAGE HEADER ----------
+   Heading trong Streamlit bị style bởi `.st-emotion-cache-* h1/h3`, độ ưu
+   tiên cao hơn selector class đơn -> cần selector cụ thể hơn (không dùng
+   giá trị màu/spacing ngoài token). */
+.page-header { margin: 0 0 var(--spacing-lg); }
+.stApp .page-header .page-title {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0;
+  padding: 0;
+  color: var(--color-text);
+}
+.stApp .page-header .page-subtitle {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--color-text-soft);
+  margin: var(--spacing-xs) 0 0;
+}
+.page-meta { font-size: var(--text-xs); font-weight: 400; color: var(--color-text-muted); margin-top: var(--spacing-sm); }
+
+/* ---------- 05. FILTER TOOLBAR & WIDGETS ---------- */
+
+[data-testid="stWidgetLabel"] p {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: var(--spacing-xs);
+}
+
+[data-baseweb="select"] > div {
+  background: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-md) !important;
+  min-height: 38px;
+  font-size: 14px;
+}
+
+[data-baseweb="select"] > div:hover { border-color: var(--color-accent) !important; }
+[data-baseweb="select"] > div:focus-within {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px var(--color-accent-tint);
+}
+[data-baseweb="select"] * { color: var(--color-text) !important; }
+
+[data-baseweb="popover"] [role="listbox"],
+[data-baseweb="popover"] ul {
+  background: var(--color-surface) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-menu) !important;
+}
+
+[data-testid="stTextInputRootElement"],
+[data-testid="stDateInputRootElement"] {
+  background: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-md) !important;
+}
+[data-testid="stTextInputRootElement"]:hover,
+[data-testid="stDateInputRootElement"]:hover { border-color: var(--color-accent) !important; }
+[data-testid="stTextInputRootElement"]:focus-within,
+[data-testid="stDateInputRootElement"]:focus-within {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px var(--color-accent-tint) !important;
+}
+[data-testid="stTextInputRootElement"] input,
+[data-testid="stDateInputRootElement"] input {
+  background: transparent !important;
+  border: none !important;
+  color: var(--color-text) !important;
+  font-size: 14px;
+  min-height: 38px;
+}
+[data-testid="stTextInput"] input::placeholder { color: var(--color-text-muted) !important; }
+[data-testid="stDateInput"] [data-testid="stDateInputField"] { background: transparent !important; }
+
+[data-testid="stButton"] button,
+[data-testid="baseButton-secondary"] {
+  min-height: 38px;
+  background: var(--color-surface);
+  color: var(--color-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: none;
+  transition: background var(--motion-fast) var(--easing-standard),
+    border-color var(--motion-fast) var(--easing-standard),
+    color var(--motion-fast) var(--easing-standard);
+}
+[data-testid="stButton"] button:hover,
+[data-testid="baseButton-secondary"]:hover {
+  background: var(--color-surface-alt);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+[data-testid="stButton"] button:active { background: var(--color-primary-tint); }
+[data-testid="stButton"] button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ---------- 06. KPI CARDS ---------- */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--spacing-lg);
+  margin: 0 0 var(--spacing-lg);
+}
+
+.kpi-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-subtle);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  height: 100%;
+  transition: transform var(--motion-fast) var(--easing-standard),
+    border-color var(--motion-fast) var(--easing-standard),
+    box-shadow var(--motion-fast) var(--easing-standard);
+}
+
+/* Hover: nhô lên nhẹ + viền đậm hơn — phản hồi tức thì, không lòe loẹt. */
+.kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-accent);
+  box-shadow: 0 3px 10px rgba(49, 51, 63, 0.08);
+}
+
+.kpi-head { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-sm); }
+.kpi-label { font-size: 14px; font-weight: 600; color: var(--color-text-soft); }
+.kpi-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  background: var(--color-accent-tint);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+}
+.kpi-value {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+.kpi-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+  min-height: 16px;
+}
+.kpi-sub .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-accent); flex: 0 0 6px; }
+
+/* ----- Chiều sâu KPI: chỉ báo ngữ cảnh (progress / badge) ----- */
+.kpi-foot { display: flex; flex-direction: column; gap: var(--spacing-sm); margin-top: auto; }
+
+.kpi-bar {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-tint);
+  overflow: hidden;
+}
+
+.kpi-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+}
+
+.kpi-bar-fill.primary { background: var(--color-primary); }
+
+@keyframes bar-grow {
+  from { width: 0; }
+}
+
+.kpi-bar-fill { animation: bar-grow 0.5s var(--easing-out) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .kpi-bar-fill { animation: none; }
+}
+
+.kpi-badge-row { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-sm); }
+
+.kpi-mini {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.kpi-badge {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-primary);
+  background: var(--color-primary-tint);
+  border-radius: var(--radius-pill);
+  padding: 2px 10px;
+  white-space: nowrap;
+}
+
+.kpi-badge.attention { background: var(--color-primary); color: var(--color-surface); }
+
+.kpi-value { font-variant-numeric: tabular-nums; }
+
+/* ---------- 07. CARD TITLES / CHIPS / FOOTERS ---------- */
+.card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
+}
+.stApp .card-title-row .card-title {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 0;
+  padding: 0;
+  color: var(--color-text);
+}
+.card-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: var(--color-primary-tint);
+  border-radius: var(--radius-pill);
+  padding: 2px 10px;
+  white-space: nowrap;
+}
+.card-subtitle { font-size: 12px; font-weight: 400; color: var(--color-text-muted); margin: 0 0 var(--spacing-md); }
+
+.chart-footer {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-top: 1px solid var(--color-border);
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  font-size: 13px;
+  color: var(--color-text-soft);
+}
+.chart-footer strong { color: var(--color-primary); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ---------- 08. CHARTS ---------- */
+[data-testid="stVegaLiteChart"] { background: transparent !important; border-radius: var(--radius-md); }
+[data-testid="stVegaLiteChart"] canvas { border-radius: var(--radius-md); }
+
+/* Dải số dưới biểu đồ vùng focal: 3 ô Tổng / Đang mượn / Đã trả. */
+.trend-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-md);
+}
+
+.trend-cell { display: flex; flex-direction: column; gap: 2px; }
+.trend-cell span { font-size: var(--text-xs); font-weight: 600; color: var(--color-text-muted); }
+.trend-cell strong { font-size: var(--text-xl); font-weight: 700; color: var(--color-text); font-variant-numeric: tabular-nums; }
+.trend-cell:first-child strong { color: var(--color-primary); }
+
+@media (max-width: 640px) {
+  .trend-summary { grid-template-columns: 1fr; }
+}
+
+/* ---------- 09. TABLE ---------- */
+[data-testid="stDataFrame"] {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-surface);
+}
+.table-footnote { font-size: 12px; font-weight: 400; color: var(--color-text-muted); margin-top: var(--spacing-md); }
+
+/* ---------- 10. ALERTS & RANK LIST ---------- */
+.alert-item {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+  padding: var(--spacing-md) var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+}
+.alert-item:last-child { margin-bottom: 0; }
+.alert-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+}
+.alert-type { display: flex; align-items: center; gap: var(--spacing-sm); font-size: 14px; font-weight: 600; color: var(--color-text); }
+.alert-marker { width: 8px; height: 8px; border-radius: 50%; background: var(--color-accent); flex: 0 0 8px; }
+.alert-meta { font-size: 12px; font-weight: 600; color: var(--color-text-muted); white-space: nowrap; }
+.alert-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: 13px;
+  color: var(--color-text-soft);
+}
+.alert-id { font-weight: 700; color: var(--color-primary); }
+.alert-sep { color: var(--color-border); }
+
+.rank-list { list-style: none; padding: 0; margin: 0; }
+.rank-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.rank-item:last-child { border-bottom: none; }
+.rank-name {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  min-width: 0;
+}
+.rank-name > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-primary-tint);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 24px;
+}
+.rank-meta { font-size: 12px; font-weight: 600; color: var(--color-text-muted); white-space: nowrap; }
+
+/* ---------- 11. SIDEBAR ---------- */
+[data-testid="stSidebar"] {
+  background: var(--color-surface-alt);
+  border-right: 1px solid var(--color-border);
+}
+/* Chỉ ép width khi sidebar đang MỞ để không phá animation/thu gọn của Streamlit. */
+[data-testid="stSidebar"][aria-expanded="true"] {
+  width: 258px !important;
+  min-width: 258px !important;
+  max-width: 258px !important;
+}
+[data-testid="stSidebarContent"] { padding: var(--spacing-lg) var(--spacing-md) var(--spacing-2xl); }
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p { margin: 0; }
+
+.side-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: 0 var(--spacing-sm) var(--spacing-xl);
+}
+.side-brand .brand-mark { width: 36px; height: 36px; flex: 0 0 36px; }
+.side-brand-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.side-brand-name { font-size: 16px; font-weight: 700; color: var(--color-text); }
+.side-brand-sub { font-size: 12px; font-weight: 400; color: var(--color-text-muted); }
+
+.side-section {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: var(--spacing-lg) var(--spacing-sm) var(--spacing-sm);
+}
+
+.side-nav { display: flex; flex-direction: column; gap: 2px; }
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-soft);
+  border: 1px solid transparent;
+  position: relative;
+}
+.nav-item .icon { color: var(--color-text-muted); }
+.nav-item.active {
+  background: var(--color-primary-tint);
+  border-color: var(--color-accent-tint-border);
+  color: var(--color-primary);
+}
+.nav-item.active .icon { color: var(--color-primary); }
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+}
+
+.side-pill-row { padding: var(--spacing-md) var(--spacing-sm) 0; }
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius-pill);
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+.pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-accent); flex: 0 0 7px; }
+
+.side-meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin: var(--spacing-md) var(--spacing-sm) 0;
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+}
+.side-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.side-meta-row strong { font-weight: 700; color: var(--color-text); font-variant-numeric: tabular-nums; }
+
+/* ---------- 12. STATES ---------- */
+.state-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  text-align: center;
+  padding: var(--spacing-3xl) var(--spacing-xl);
+}
+.state-block.compact { padding: var(--spacing-2xl) var(--spacing-lg); }
+.state-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--color-primary-tint);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--spacing-xs);
+}
+.state-title { font-size: 15px; font-weight: 600; color: var(--color-text); }
+.state-hint { font-size: 12px; font-weight: 400; color: var(--color-text-muted); max-width: 460px; }
+
+.error-card {
+  display: flex;
+  gap: var(--spacing-lg);
+  align-items: flex-start;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-subtle);
+  padding: var(--spacing-xl) var(--spacing-2xl);
+  max-width: 720px;
+  margin: var(--spacing-3xl) auto;
+}
+.error-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-primary-tint);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 40px;
+}
+.error-title { font-size: 16px; font-weight: 700; color: var(--color-text); margin: 0 0 var(--spacing-xs); }
+.error-detail { font-size: 14px; line-height: 1.5; color: var(--color-text-muted); margin: 0; }
+.error-detail + .error-detail { margin-top: var(--spacing-sm); }
+
+/* ---------- 13. SIDEBAR NAVIGATION (st.button) ----------
+   Nav là button thật (bàn phím/aria chuẩn). Icon được nhúng làm
+   background-image theo từng mục (xem ui/sidebar._nav_icon_css) nên mục đang
+   mở và mục còn lại chỉ khác nhau về màu token, không thêm phong cách icon mới. */
+[data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 2px; }
+[data-testid="stSidebar"] [data-testid="stButton"] { margin: 0; }
+[data-testid="stSidebar"] [data-testid="stButton"] button {
+  justify-content: flex-start;
+  text-align: left;
+  min-height: 40px;
+  padding: var(--spacing-sm) var(--spacing-md) var(--spacing-sm) 42px;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: 15px center;
+  background-size: 17px 17px;
+  border-color: transparent;
+  color: var(--color-text-soft);
+  font-weight: 600;
+}
+[data-testid="stSidebar"] [data-testid="stButton"] button:hover {
+  background-color: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-primary);
+}
+[data-testid="stSidebar"] button[kind="primary"],
+[data-testid="stSidebar"] [data-testid="stBaseButton-primary"] {
+  background-color: var(--color-primary-tint) !important;
+  border-color: var(--color-accent-tint-border) !important;
+  box-shadow: inset 3px 0 0 var(--color-primary);
+  color: var(--color-primary) !important;
+}
+[data-testid="stSidebar"] button[kind="primary"] p,
+[data-testid="stSidebar"] [data-testid="stBaseButton-primary"] p {
+  color: var(--color-primary) !important;
+  font-weight: 700;
+}
+
+/* Khối user cuối sidebar: avatar + tên + vai trò, tách bằng viền trên. */
+.side-user {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin: var(--spacing-lg) var(--spacing-sm) 0;
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.side-user .user-avatar { width: 30px; height: 30px; flex: 0 0 30px; }
+
+.side-user-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.side-user-name { font-size: 13px; font-weight: 700; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.side-user-sub { font-size: var(--text-xs); font-weight: 400; color: var(--color-text-muted); }
+
+/* ---------- 14. PAGE CHIP (ngữ cảnh trang trên topbar) ---------- */
+.page-chip {
+  margin-left: var(--spacing-md);
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-tint);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ---------- 15. STATUS BADGE & STAT CHIPS ---------- */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text-soft);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.status-badge.attention {
+  background: var(--color-primary-tint);
+  border-color: var(--color-accent-tint-border);
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.stat-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin: var(--spacing-md) 0;
+}
+.stat-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--spacing-sm);
+  padding: 4px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-alt);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.stat-chip strong { color: var(--color-text); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat-chip.attention { border-color: var(--color-accent-tint-border); background: var(--color-primary-tint); }
+.stat-chip.attention strong { color: var(--color-primary); }
+.stat-chip.total { border-color: var(--color-accent-tint-border); }
+
+/* ---------- 16. NOTICES (success / info / error) ---------- */
+.notice {
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+  padding: var(--spacing-md) var(--spacing-lg);
+  margin: var(--spacing-md) 0;
+}
+.notice-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.notice-title .icon { color: var(--color-primary); }
+.notice-desc { font-size: 12px; color: var(--color-text-muted); margin-top: var(--spacing-xs); }
+.notice.success { background: var(--color-accent-tint); }
+.notice.error { border-left-color: var(--color-primary); background: var(--color-primary-tint); }
+.notice-list {
+  margin: var(--spacing-sm) 0 0;
+  padding-left: var(--spacing-xl);
+  font-size: 13px;
+  color: var(--color-text-soft);
+}
+.notice-list li { margin-bottom: 2px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+
+/* ---------- 17. FORM SECTIONS ---------- */
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: var(--spacing-lg) 0 var(--spacing-sm);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+.form-section-title { font-size: 14px; font-weight: 700; color: var(--color-text); }
+.form-section-desc { font-size: 12px; color: var(--color-text-muted); }
+
+/* ---------- 18. DETAIL TABLE / DIALOG ---------- */
+.detail-table {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin: var(--spacing-md) 0;
+}
+.detail-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
+}
+.detail-row:last-child { border-bottom: none; }
+.detail-row:nth-child(odd) { background: var(--color-surface-alt); }
+.detail-label { color: var(--color-text-muted); font-weight: 600; white-space: nowrap; }
+.detail-value { color: var(--color-text); font-weight: 600; text-align: right; word-break: break-word; }
+.detail-badges { display: flex; flex-wrap: wrap; gap: var(--spacing-sm); margin-bottom: var(--spacing-sm); }
+.detail-note {
+  font-size: 12px;
+  color: var(--color-primary);
+  background: var(--color-primary-tint);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-top: var(--spacing-md);
+}
+.dialog-text { font-size: 14px; color: var(--color-text-soft); margin: 0 0 var(--spacing-sm); }
+
+/* ---------- 18b. HINT BAR (gợi ý thao tác) ----------
+   Nói rõ người dùng cần bấm vào đâu. Viền nét đứt để không cạnh tranh thị giác
+   với nội dung thật (card/bảng). */
+.hint-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-top: var(--spacing-md);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+  color: var(--color-text-soft);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.hint-bar .icon { color: var(--color-primary); }
+
+/* Nút CTA nằm giữa khối trạng thái, không kéo dài hết bề rộng card. */
+.st-key-state_action {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--spacing-md);
+}
+.st-key-state_action [data-testid="stButton"] button { min-width: 220px; }
+
+/* ---------- 18c. START CARD (hướng dẫn khởi đầu) ----------
+   Dùng khi hệ thống chưa có dữ liệu: thay cho một dashboard toàn số 0. */
+.start-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--spacing-sm);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-subtle);
+  padding: var(--spacing-3xl) var(--spacing-xl);
+}
+.start-card .state-icon { margin-bottom: 0; }
+.start-steps {
+  counter-reset: start-step;
+  list-style: none;
+  padding: 0;
+  margin: var(--spacing-md) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  text-align: left;
+  max-width: 520px;
+}
+.start-steps li {
+  counter-increment: start-step;
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-md);
+  font-size: 14px;
+  color: var(--color-text-soft);
+}
+.start-steps li::before {
+  content: counter(start-step);
+  flex: 0 0 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-primary-tint);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---------- 19. ROW ACTION BAR ---------- */
+.st-key-row_action_bar,
+.st-key-bulk_action_bar {
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-top: var(--spacing-md);
+}
+.st-key-row_action_bar [data-testid="stVerticalBlock"],
+.st-key-bulk_action_bar [data-testid="stVerticalBlock"] { gap: var(--spacing-sm); }
+.row-action-label { font-size: 13px; color: var(--color-text-muted); }
+.row-action-label strong { color: var(--color-text); font-weight: 700; }
+
+/* ---------- 20. META GRID / META ROW (trang dữ liệu) ---------- */
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--spacing-md);
+  margin: var(--spacing-md) 0;
+}
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+}
+.meta-label { font-size: 12px; font-weight: 600; color: var(--color-text-muted); }
+.meta-value { font-size: 14px; font-weight: 700; color: var(--color-text); word-break: break-word; }
+.meta-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin: var(--spacing-sm) 0;
+  font-size: 13px;
+}
+.meta-row .meta-label { font-size: 13px; }
+.meta-row .meta-value { font-size: 13px; }
+
+/* ---------- 21. EXPANDER / UPLOAD / REPORT TEXT ---------- */
+[data-testid="stExpander"] details {
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-md) !important;
+  background: var(--color-surface);
+}
+[data-testid="stExpander"] summary { font-size: 14px; font-weight: 600; color: var(--color-primary); }
+[data-testid="stFileUploaderDropzone"] {
+  background: var(--color-surface-alt);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+}
+[data-testid="stFileUploaderDropzone"]:hover { border-color: var(--color-accent); }
+[data-testid="stCode"] { border-radius: var(--radius-md); }
+[data-testid="stCode"] pre {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-surface-alt);
+}
+
+/* ---------- 21b. MOTION ----------
+   Chỉ dùng cho phản hồi của hành động (notice vừa sinh ra sau CRUD), không
+   animate lại toàn trang ở mỗi lần rerun. Tôn trọng prefers-reduced-motion. */
+@keyframes notice-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+.notice { animation: notice-in var(--motion-base) var(--easing-standard) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Thanh phân trang: chỉ địa chỉ '1–10 / 62 phiếu' căn giữa. */
+.pagination-info {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 21c. ALERT CARD (nhóm "Cần xử lý") ----------
+   Vỏ card dùng st.container(border=True) — hệ card chung của app; CSS dưới
+   chỉ bổ sung phần bên trong: hàng icon/tiêu đề/số và phần mô tả. */
+.alert-card-top {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
+}
+
+.alert-card-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-tint);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 38px;
+}
+
+.alert-card-count {
+  margin-left: auto;
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.alert-card-title { font-size: 16px; font-weight: 700; color: var(--color-text); }
+.alert-card-desc { font-size: 13px; color: var(--color-text-muted); line-height: 1.45; margin-bottom: var(--spacing-sm); }
+
+.alert-card [class*="st-key-alert_card_cta"] { margin-top: auto; }
+.alert-card [class*="st-key-alert_card_cta"] [data-testid="stButton"] button { width: 100%; }
+
+/* ---------- 21d. RECENT ACTIVITY (timeline) ---------- */
+.timeline { list-style: none; padding: 0; margin: 0; }
+
+.timeline-item {
+  display: flex;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.timeline-item:last-child { border-bottom: none; }
+
+.timeline-item .alert-marker {
+  margin-top: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  flex: 0 0 8px;
+}
+
+.timeline-item.returned .alert-marker { background: var(--color-border); }
+
+.timeline-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+
+.timeline-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-title .timeline-id { color: var(--color-primary); font-weight: 700; }
+
+.timeline-desc { font-size: 13px; color: var(--color-text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.timeline-meta { font-size: var(--text-xs); color: var(--color-text-muted); }
+
+/* ---------- 21e. SKELETON LOADING ----------
+   Thay spinner cho vùng lớn (KPI/chart) — xung nhẹ, không quay tròn. */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.skeleton {
+  border-radius: var(--radius-md);
+  background: var(--color-accent-tint);
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.skeleton-row { height: 14px; margin: var(--spacing-sm) 0; }
+.skeleton-block { height: 200px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; opacity: 0.7; }
+}
+
+/* ---------- 21f. BULK BAR SLIDE-IN ----------
+   Thanh thao tác hàng loạt trượt vào khi chọn dòng; lòe nhẹ đủ để mắt bắt
+   được mà không cản trở thao tác. */
+@keyframes bar-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.st-key-row_action_bar,
+.st-key-bulk_action_bar {
+  animation: bar-in var(--motion-base) var(--easing-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st-key-row_action_bar,
+  .st-key-bulk_action_bar { animation: none; }
+}
+
+/* ---------- 21g. MICRO-INTERACTIONS (button / table row) ----------
+   Button hover nhô nhẹ, active lún nhẹ — cảm giác bấm "ăn" vào nút. */
+[data-testid="stButton"] button,
+[data-testid="baseButton-secondary"] {
+  transition: transform var(--motion-fast) var(--easing-standard),
+    background var(--motion-fast) var(--easing-standard),
+    border-color var(--motion-fast) var(--easing-standard),
+    box-shadow var(--motion-fast) var(--easing-standard),
+    color var(--motion-fast) var(--easing-standard);
+}
+
+[data-testid="stButton"] button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(49, 51, 63, 0.10);
+}
+
+[data-testid="stButton"] button:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+  box-shadow: none;
+}
+
+/* Dòng bảng: hover nền nhạt, con trỏ vùng chọn rõ ràng. */
+[data-testid="stDataFrame"] [data-testid="stDataFrameResizableCell"]:has([data-testid="stMarkdownContainer"]) { transition: background var(--motion-fast) var(--easing-standard); }
+
+[data-testid="stExpander"] summary { transition: color var(--motion-fast) var(--easing-standard); }
+[data-testid="stExpander"] summary:hover { color: var(--color-accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-testid="stButton"] button:hover:not(:disabled) { transform: none; }
+  [data-testid="stButton"] button:active:not(:disabled) { transform: none; }
+}
+
+/* ---------- 22. FOCUS & ACCESSIBILITY ---------- */
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.nav-item:focus-visible,
+.icon-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* ---------- 23. RESPONSIVE ---------- */
+@media (max-width: 1200px) {
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1024px) {
+  .block-container,
+  [data-testid="stMainBlockContainer"] {
+    padding-left: var(--spacing-2xl) !important;
+    padding-right: var(--spacing-2xl) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-title { font-size: 24px; }
+  .app-topbar { flex-wrap: wrap; row-gap: var(--spacing-md); }
+  .detail-row { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .detail-value { text-align: left; }
+  .detail-label { white-space: normal; }
+  .meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .kpi-grid { grid-template-columns: 1fr; }
+  .meta-grid { grid-template-columns: 1fr; }
+  .stat-chip-row { gap: var(--spacing-xs); }
+  .app-topbar { padding: var(--spacing-md); gap: var(--spacing-sm); }
+  .brand-sub { display: none; }
+  .user-chip { padding: var(--spacing-xs) var(--spacing-sm) var(--spacing-xs) var(--spacing-xs); }
+  .side-brand { padding-bottom: var(--spacing-lg); }
+}
