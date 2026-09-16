@@ -68,8 +68,20 @@ def test_overview_renders_both_equal_cards_without_exception():
     html = " ".join(m.value for m in at.markdown)
     assert "Lượt mượn theo loại thiết bị" in html
     assert "Ngày mượn nhiều nhất" in html
+    # Band Cần xử lý full-width ở giữa + nút đi xử lý (không còn panel cạnh chart).
+    assert "Cần xử lý" in html
+    assert "summary_to_alerts" in [b.key for b in at.button]
     # Mỗi chart kèm đúng 1 footer tóm tắt cùng class (chiều cao footer bằng nhau).
     assert html.count('class="chart-footer"') >= 2
+
+
+def test_sidebar_shows_build_tag():
+    """Tem version giúp phân biệt bản cũ/mới khi trình duyệt còn cache."""
+    at = _run("overview")
+    assert len(at.exception) == 0, at.exception
+    html = " ".join(m.value for m in at.markdown)
+    assert 'class="side-version"' in html
+    assert "bản " in html
 
 
 def test_alerts_equal_cards_slots_and_pagination_intact():

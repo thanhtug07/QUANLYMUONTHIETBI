@@ -273,35 +273,54 @@ def render(analysis: Dict[str, Any]) -> None:
         )
 
     # Thứ tự block (trên -> dưới, quan trọng -> chi tiết): header, filter,
-    # KPI, thao tác nhanh, xu hướng + cảnh báo, phân tích theo nhóm, xếp hạng,
-    # bảng vận hành. Panel "Cần xử lý" cạnh chart chính thay cho dải strip
-    # trùng lặp nên trang gọn mà cảnh báo vẫn above-the-fold.
+    # KPI, thao tác nhanh, 2 chart xu hướng, band cảnh báo, phân tích theo
+    # nhóm + tỉ lệ, xếp hạng, bảng vận hành. Band "Cần xử lý" nằm giữa trang
+    # (full-width, gọn) thay cho panel cạnh chart nên cân đối mà cảnh báo
+    # vẫn above-the-fold.
     # ------------------------------------------------------------------
-    # VISUAL FOCAL POINT — "Hoạt động mượn thiết bị" (area chart, 8/4)
+    # VISUAL FOCAL POINT — xu hướng tháng (8) + ngày trong tuần (4).
+    # Bọc key ov_equal_charts để CSS §10c kéo 2 card cao bằng nhau.
     # ------------------------------------------------------------------
-    focal_left, focal_right = analytics_grid()
+    with st.container(key="ov_equal_charts"):
+        focal_left, focal_right = analytics_grid()
 
-    with focal_left:
-        with st.container(border=True):
-            card_header(
-                "Hoạt động mượn thiết bị",
-                "Tổng lượt mượn tích luỹ theo tháng từ ngày mượn của phiếu.",
-            )
-            monthly = stat_mod.borrows_by_month(filtered_records)
-            render_trend_area(monthly, stats)
+        with focal_left:
+            with st.container(border=True):
+                card_header(
+                    "Hoạt động mượn thiết bị",
+                    "Tổng lượt mượn tích luỹ theo tháng từ ngày mượn của phiếu.",
+                )
+                monthly = stat_mod.borrows_by_month(filtered_records)
+                render_trend_area(monthly, stats)
 
-    with focal_right:
-        with st.container(border=True):
-            total_alerts = (
-                int(stats.get("overdue_count", 0) or 0)
-                + int(stats.get("lost_count", 0) or 0)
-                + len(analysis.get("errors", []))
+        with focal_right:
+            with st.container(border=True):
+                card_header(
+                    "Ngày mượn nhiều nhất",
+                    "Số lượt mượn theo ngày trong tuần.",
+                )
+                render_weekday_bars(stats.get("borrows_by_weekday", []))
+
+    # ------------------------------------------------------------------
+    # BAND "Cần xử lý" full-width ở giữa trang: số tổng + top 3 nghiêm trọng
+    # nhất + nút đi xử lý. Gọn 1 hàng, không chiếm cả cột như panel cũ.
+    # ------------------------------------------------------------------
+    with st.container(border=True):
+        total_alerts = (
+            int(stats.get("overdue_count", 0) or 0)
+            + int(stats.get("lost_count", 0) or 0)
+            + len(analysis.get("errors", []))
+        )
+        band_count, band_list, band_action = st.columns(
+            [1, 3, 1], gap="medium", vertical_alignment="center"
+        )
+        with band_count:
+            st.markdown(
+                f'<div class="kpi-value">{total_alerts}</div>'
+                f'<div class="kpi-sub"><span class="dot"></span>Cần xử lý</div>',
+                unsafe_allow_html=True,
             )
-            card_header(
-                "Cần xử lý",
-                "Cảnh báo nghiêm trọng nhất trong bộ lọc hiện tại.",
-                chip=str(total_alerts),
-            )
+        with band_list:
             top_overdue = list(stats.get("overdue_days", []))[:3]
             if top_overdue:
                 devices_lookup = stats.get("devices_by_id", {})
@@ -321,6 +340,7 @@ def render(analysis: Dict[str, Any]) -> None:
                     '<div class="table-footnote">Không có cảnh báo trong bộ lọc hiện tại.</div>',
                     unsafe_allow_html=True,
                 )
+        with band_action:
             st.button(
                 "Xử lý ngay",
                 key="summary_to_alerts",
@@ -331,50 +351,21 @@ def render(analysis: Dict[str, Any]) -> None:
             )
 
     # ------------------------------------------------------------------
-    # Secondary analytics: loại thiết bị (8) + ngày trong tuần (4).
-    # Bọc key ov_equal_charts để CSS §10c kéo 2 card cao bằng nhau (plot +
-    # trục + footer đã cân ở ui/charts nên card co theo nội dung bằng nhau).
+    # Phân tích theo nhóm (8) + tỉ lệ (4): loại thiết bị cạnh gauge/util.
     # ------------------------------------------------------------------
-    with st.container(key="ov_equal_charts"):
-        analytics_left, analytics_right = analytics_grid()
+    analytics_left, analytics_right = analytics_grid()
 
-        with analytics_left:
-            with st.container(border=True):
-                card_header(
-                    "Lượt mượn theo loại thiết bị",
-                    "So sánh nhu cầu mượn giữa các nhóm thiết bị.",
-                )
-                render_category_chart(
-                    stats.get("borrows_by_category", []), stats.get("total_borrows", 0)
-                )
-
-        with analytics_right:
-            with st.container(border=True):
-                card_header(
-                    "Ngày mượn nhiều nhất",
-                    "Số lượt mượn theo ngày trong tuần.",
-                )
-                render_weekday_bars(stats.get("borrows_by_weekday", []))
-
-    # ------------------------------------------------------------------
-    # Best table (8) + gauge/độ phủ (4): xếp hạng cạnh chỉ số tỷ lệ
-    # ------------------------------------------------------------------
-    mix_left, mix_right = analytics_grid()
-
-    with mix_left:
+    with analytics_left:
         with st.container(border=True):
             card_header(
-                "Thiết bị được mượn nhiều",
-                "Xếp hạng theo số lượt mượn trong bộ lọc hiện tại.",
-                chip=str(len(stats.get("top_devices", [])[:6])),
+                "Lượt mượn theo loại thiết bị",
+                "So sánh nhu cầu mượn giữa các nhóm thiết bị.",
             )
-            render_top_devices_table(
-                stats.get("top_devices", []),
-                stats.get("devices_by_id", {}),
-                int(stats.get("total_borrows", 0) or 0),
+            render_category_chart(
+                stats.get("borrows_by_category", []), stats.get("total_borrows", 0)
             )
 
-    with mix_right:
+    with analytics_right:
         with st.container(border=True):
             card_header(
                 "Tỷ lệ trả đúng hạn",
@@ -394,7 +385,7 @@ def render(analysis: Dict[str, Any]) -> None:
                 help="Mở trang Báo cáo để xem phân tích đầy đủ.",
             )
 
-    with mix_right:
+    with analytics_right:
         with st.container(border=True):
             card_header(
                 "Mức sử dụng thiết bị",
@@ -414,6 +405,21 @@ def render(analysis: Dict[str, Any]) -> None:
                 f"</div></div>",
                 unsafe_allow_html=True,
             )
+
+    # ------------------------------------------------------------------
+    # Xếp hạng full-width + bảng vận hành: best table rồi phiếu cần theo dõi.
+    # ------------------------------------------------------------------
+    with st.container(border=True):
+        card_header(
+            "Thiết bị được mượn nhiều",
+            "Xếp hạng theo số lượt mượn trong bộ lọc hiện tại.",
+            chip=str(len(stats.get("top_devices", [])[:6])),
+        )
+        render_top_devices_table(
+            stats.get("top_devices", []),
+            stats.get("devices_by_id", {}),
+            int(stats.get("total_borrows", 0) or 0),
+        )
 
     # ------------------------------------------------------------------
     # Dữ liệu vận hành + hoạt động gần đây

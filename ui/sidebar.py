@@ -12,7 +12,9 @@ không phụ thuộc font icon ngoài).
 """
 from __future__ import annotations
 
+import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import streamlit as st
@@ -91,6 +93,28 @@ def _nav_icon_css(active: str) -> str:
     return "\n".join(rules)
 
 
+def _build_tag() -> str:
+    """
+    Mã commit ngắn của bản code đang chạy (để đối chiếu bản cũ/mới khi
+    trình duyệt còn cache: nhìn tem là biết có cần hard-refresh không).
+    Lấy lỗi (không có git / cloud chặn subprocess) thì ẩn, không crash app.
+    """
+    try:
+        completed = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+            cwd=str(Path(__file__).resolve().parent),
+        )
+        tag = completed.stdout.strip()
+        if completed.returncode == 0 and len(tag) >= 4 and all(
+            char in "0123456789abcdef" for char in tag
+        ):
+            return tag
+    except Exception:
+        pass
+    return ""
+
+
 def _data_meta_html(counts: Dict[str, int]) -> str:
     rows: List[str] = []
     for key, label in COUNT_LABELS:
@@ -153,6 +177,13 @@ def render_sidebar(
         if meta_html:
             st.markdown(meta_html, unsafe_allow_html=True)
 
+        # Tem version: biết chắc trình duyệt đang chạy bản code nào.
+        build_tag = _build_tag()
+        if build_tag:
+            st.markdown(
+                f'<div class="side-version">bản {esc(build_tag)}</div>',
+                unsafe_allow_html=True,
+            )
         # Khối user cuối sidebar — cùng thành phần với topbar (người quản lý),
         # KHÔNG thêm authentication mới.
         st.markdown(
