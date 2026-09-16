@@ -91,7 +91,53 @@ SPACING: Final[Dict[str, str]] = {
 }
 
 SHADOW_SUBTLE: Final[str] = "0 1px 2px rgba(49, 51, 63, 0.05)"
+SHADOW_CARD: Final[str] = "0 2px 10px rgba(49, 51, 63, 0.07)"
 SHADOW_MENU: Final[str] = "0 4px 12px rgba(49, 51, 63, 0.10)"
+
+# ----------------------------------------------------------------------
+# STATUS SEMANTIC — màu trạng thái duy nhất được phép dùng
+# ----------------------------------------------------------------------
+#: Mỗi trạng thái gồm 5 giá trị: text (chữ đậm trên nền nhạt), bg (nền rất
+#: nhạt), border (viền nhẹ), dot (chấm tròn trong badge) và base (màu đặc
+#: dùng cho biểu đồ/marker). Badge LUÔN kèm nhãn chữ nên màu không bao giờ
+#: là tín hiệu duy nhất (accessibility).
+STATUS: Final[Dict[str, Dict[str, str]]] = {
+    "success": {  # hoàn tất / đã trả / sẵn sàng
+        "text": "#1B7A3D",
+        "bg": "rgba(27, 122, 61, 0.08)",
+        "border": "rgba(27, 122, 61, 0.30)",
+        "dot": "#1B7A3D",
+        "base": "#2F9E5F",
+    },
+    "info": {  # đang xử lý / đang mượn (dựa trên primary của palette)
+        "text": "#0054A3",
+        "bg": "rgba(0, 84, 163, 0.08)",
+        "border": "rgba(61, 157, 243, 0.40)",
+        "dot": "#3D9DF3",
+        "base": "#0054A3",
+    },
+    "warning": {  # cần chú ý / bảo trì
+        "text": "#8A5A00",
+        "bg": "rgba(138, 90, 0, 0.08)",
+        "border": "rgba(138, 90, 0, 0.32)",
+        "dot": "#8A5A00",
+        "base": "#C98A0A",
+    },
+    "danger": {  # quá hạn / lỗi / thất thoát
+        "text": "#B42318",
+        "bg": "rgba(180, 35, 24, 0.07)",
+        "border": "rgba(180, 35, 24, 0.32)",
+        "dot": "#B42318",
+        "base": "#CE4B3C",
+    },
+    "neutral": {  # chưa xác định / không hoạt động
+        "text": "rgba(49, 51, 63, 0.78)",
+        "bg": "#FAFAFA",
+        "border": "#C9DDF0",
+        "dot": "rgba(49, 51, 63, 0.45)",
+        "base": "#C9DDF0",
+    },
+}
 
 # ----------------------------------------------------------------------
 # MOTION
@@ -132,10 +178,12 @@ def css_variables() -> str:
         "--color-accent-tint-border": ACCENT_TINT_BORDER,
         "--font-family": FONT_FAMILY,
         "--shadow-subtle": SHADOW_SUBTLE,
+        "--shadow-card": SHADOW_CARD,
         "--shadow-menu": SHADOW_MENU,
         "--easing-standard": EASING_STANDARD,
         "--easing-out": EASING_OUT,
     }
+    tokens.update({f"--st-{name}-{prop}": value for name, props in STATUS.items() for prop, value in props.items()})
     tokens.update({f"--motion-{name}": value for name, value in MOTION.items()})
     tokens.update({f"--text-{name}": value for name, value in FONT_SIZE.items()})
     tokens.update({f"--radius-{name}": value for name, value in RADIUS.items()})

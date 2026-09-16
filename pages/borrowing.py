@@ -96,6 +96,12 @@ SELECTED_KEY = "borrow_selected_id"
 #: Khoá phân trang của bảng phiếu mượn.
 PAGE_KEY = "borrow_page"
 
+#: Khoá toggle sắp xếp "Mới nhất lên đầu".
+SORT_KEY = "borrow_newest_first"
+
+#: Cờ "đã chọn tất cả dòng trang hiện tại" (workaround — xem _render_card_actions).
+SELECT_ALL_KEY = "borrow_select_all_page"
+
 
 # ----------------------------------------------------------------------
 # Bộ lọc
@@ -106,7 +112,121 @@ def _reset_filters() -> None:
         st.session_state.pop(key, None)
     st.session_state.pop(SELECTED_KEY, None)
     st.session_state.pop(PAGE_KEY, None)
+    st.session_state.pop(SORT_KEY, None)
+    st.session_state.pop(SELECT_ALL_KEY, None)
     st.rerun()
+
+
+# ----------------------------------------------------------------------
+# Sắp xếp + cụm nút header card "Danh sách phiếu mượn"
+# ----------------------------------------------------------------------
+
+def sort_records_by_borrow_date(
+    records: List[Dict[str, Any]], newest_first: bool = True
+) -> List[Dict[str, Any]]:
+    """Sắp xếp phiếu theo ngày mượn (parse qua `cleaners.parse_date`).
+
+    Ngày rỗng/sai định dạng luôn xếp cuối bất kể chiều sắp xếp — không crash,
+    không loại bản ghi.
+    """
+    dated: List[tuple[Any, Dict[str, Any]]] = []
+    undated: List[Dict[str, Any]] = []
+    for record in records:
+        parsed = parse_date(record.get("borrow_date"))
+        if parsed is None:
+            undated.append(record)
+        else:
+            dated.append((parsed, record))
+    dated.sort(key=lambda item: item[0], reverse=newest_first)
+    return [record for _, record in dated] + undated
+
+
+def build_delete_all_message(count: int, is_filtered: bool) -> str:
+    """Câu xác nhận của dialog xóa-all — luôn nêu số lượng + phạm vi."""
+    scope = "kết quả lọc hiện tại" if is_filtered else "toàn bộ danh sách (đang không lọc)"
+    return (
+        f"Xóa {count} phiếu mượn trong {scope}? "
+        "Không thể hoàn tác. Các thiết bị liên quan được giữ nguyên."
+    )
+
+
+def _toggle_sort() -> None:
+    st.session_state[SORT_KEY] = not bool(st.session_state.get(SORT_KEY, False))
+    st.session_state[PAGE_KEY] = 1
+    st.session_state.pop(SELECT_ALL_KEY, None)
+
+
+def _toggle_select_page() -> None:
+    if st.session_state.get(SELECT_ALL_KEY):
+        st.session_state.pop(SELECT_ALL_KEY, None)
+    else:
+        st.session_state[SELECT_ALL_KEY] = True
+
+
+def _render_card_actions(
+    page_rows: List[Dict[str, str]],
+    all_rows: List[Dict[str, str]],
+    is_filtered: bool,
+) -> List[str]:
+    """Hàng nút compact trong card bảng phiếu mượn. Trả về effective selected ids.
+
+    - "Mới nhất": toggle sắp xếp, về trang 1.
+    - "Chọn tất cả trang này": Streamlit KHÔNG cho tick checkbox của
+      st.dataframe programmatically, nên nút này không chạm vào selection của
+      bảng mà set cờ SELECT_ALL_KEY — render bulk bar bên dưới dùng toàn bộ id
+      trang hiện tại (tái dùng đúng bulk bar + dialog bulk_delete đã có).
+      Bảng vẫn hiện chưa tick (hạn chế của Streamlit), bù lại có caption ghi rõ
+      số dòng đang được chọn thay.
+    - "Xóa tất cả (N)": mở confirm_dialog danger với scope rõ ràng.
+    """
+    newest_first = bool(st.session_state.get(SORT_KEY, False))
+    selecting_all = bool(st.session_state.get(SELECT_ALL_KEY, False))
+    page_ids = [str(row.get("Mã phiếu", "")).strip() for row in page_rows if str(row.get("Mã phiếu", "")).strip()]
+
+    cols = st.columns(3, gap="small")
+    cols[0].button(
+        "↓ Mới nhất: Bật" if newest_first else "↓ Mới nhất",
+        key="borrow_sort_toggle",
+        on_click=_toggle_sort,
+        help="Bật: ngày mượn gần nhất lên đầu. Tắt: giữ thứ tự gốc. Luôn về trang 1.",
+    )
+    cols[1].button(
+        "Bỏ chọn trang này" if selecting_all else "Chọn tất cả trang này",
+        key="borrow_select_page",
+        on_click=_toggle_select_page,
+        disabled=not page_ids,
+        help="Chọn toàn bộ dòng đang hiển thị để xóa hàng loạt qua thanh thao tác bên dưới.",
+    )
+    cols[2].button(
+        f"Xóa tất cả ({len(all_rows)})",
+        key="borrow_delete_filtered",
+        on_click=_open_delete_all,
+        args=(all_rows, is_filtered),
+        disabled=not all_rows,
+        help="Xóa toàn bộ phiếu trong kết quả lọc hiện tại (có xác nhận, nêu rõ số lượng).",
+    )
+
+    if selecting_all:
+        if not page_ids:
+            st.session_state.pop(SELECT_ALL_KEY, None)
+            return []
+        st.caption(
+            f"Đã chọn {len(page_ids)} dòng trang này (chế độ hỗ trợ — "
+            "Streamlit không cho tick ô checkbox tự động nên bảng vẫn hiện chưa tick, "
+            "nhưng thanh xóa hàng loạt bên dưới dùng đúng số dòng này)."
+        )
+        return page_ids
+    return []
+
+
+def _open_delete_all(all_rows: List[Dict[str, str]], is_filtered: bool) -> None:
+    borrow_ids = [
+        str(row.get("Mã phiếu", "")).strip() for row in all_rows if str(row.get("Mã phiếu", "")).strip()
+    ]
+    if not borrow_ids:
+        set_flash("Không có phiếu mượn nào trong kết quả lọc hiện tại để xóa.")
+        return
+    open_dialog("delete_all", borrow_ids=borrow_ids, is_filtered=bool(is_filtered))
 
 
 def _render_toolbar(devices: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -201,7 +321,14 @@ def _record_form(analysis: Dict[str, Any], record: Optional[Dict[str, Any]]) -> 
     with st.form("borrow_record_form"):
         form_section("Thông tin phiếu", "Mã phiếu được gợi ý từ dữ liệu hiện có, có thể sửa.")
         first_row = st.columns([1, 1.6, 1.6], gap="medium")
-        borrow_id = first_row[0].text_input("Mã phiếu", value=default_id)
+        borrow_id = first_row[0].text_input(
+            "Mã phiếu",
+            value=default_id,
+            # Khoá mã khi sửa: đổi mã ở đây sẽ khiến update_row không tìm thấy
+            # dòng gốc (mất cập nhật nhưng vẫn báo thành công). Muốn mã khác
+            # thì xoá rồi tạo mới để giữ đúng tham chiếu FK.
+            disabled=editing,
+        )
         device_id = first_row[1].selectbox(
             "Thiết bị",
             options=[value for value, _ in device_options],
@@ -379,6 +506,40 @@ def _dialog_bulk_delete(payload: Dict[str, Any], analysis: Dict[str, Any]) -> No
     )
 
 
+def _dialog_delete_all(payload: Dict[str, Any], analysis: Dict[str, Any]) -> None:
+    borrow_ids = [str(value).strip() for value in payload.get("borrow_ids", []) if str(value).strip()]
+    is_filtered = bool(payload.get("is_filtered", False))
+    if not borrow_ids:
+        detail_dialog("Không có phiếu mượn để xóa", [("Số phiếu trong phạm vi", "0")])
+        return
+
+    def _confirm() -> None:
+        removed = data_store.delete_rows(main.RECORDS_CSV, RECORD_COLUMNS, "borrow_id", borrow_ids)
+        clear_data_cache()
+        st.session_state.pop(SELECT_ALL_KEY, None)
+        st.session_state.pop(SELECTED_KEY, None)
+        st.session_state[PAGE_KEY] = 1
+        if removed:
+            set_flash(f"Đã xóa {removed} phiếu mượn.")
+        else:
+            set_flash("Không tìm thấy phiếu mượn nào để xóa.")
+
+    scope_label = (
+        "Kết quả lọc hiện tại" if is_filtered else "Toàn bộ danh sách (đang không lọc)"
+    )
+    confirm_dialog(
+        "Xóa tất cả phiếu mượn (đang lọc)",
+        build_delete_all_message(len(borrow_ids), is_filtered),
+        "Xóa tất cả",
+        _confirm,
+        detail_rows=[
+            ("Phạm vi xóa", scope_label),
+            ("Số phiếu sẽ xóa", str(len(borrow_ids))),
+            ("Mã phiếu", ", ".join(borrow_ids[:12]) + ("..." if len(borrow_ids) > 12 else "")),
+        ],
+    )
+
+
 # ----------------------------------------------------------------------
 # Render page
 # ----------------------------------------------------------------------
@@ -416,6 +577,13 @@ def render(analysis: Dict[str, Any]) -> None:
         devices_by_id=devices_by_id,
         borrowers_by_id=borrowers_by_id,
     )
+    if bool(st.session_state.get(SORT_KEY, False)):
+        filtered = sort_records_by_borrow_date(filtered, newest_first=True)
+    is_filtered = bool(
+        str(filters["search"]).strip()
+        or filters["status"] != "Tất cả"
+        or filters["time_mode"] != "Tất cả"
+    )
     all_rows = record_rows(filtered, devices_by_id, borrowers_by_id)
     page_rows, total_pages = paginate(all_rows, PAGE_KEY)
 
@@ -425,6 +593,7 @@ def render(analysis: Dict[str, Any]) -> None:
             "Chọn một dòng để xem, sửa hoặc xóa phiếu.",
             chip=f"{len(all_rows)}/{len(base_records)}",
         )
+        assisted_ids = _render_card_actions(page_rows, all_rows, is_filtered)
         selected_indices = render_records_table(
             page_rows,
             TABLE_COLUMNS,
@@ -444,6 +613,8 @@ def render(analysis: Dict[str, Any]) -> None:
             )
 
         selected_rows = [page_rows[index] for index in selected_indices if 0 <= index < len(page_rows)]
+        if assisted_ids:
+            selected_rows = [row for row in page_rows if str(row.get("Mã phiếu", "")).strip() in set(assisted_ids)]
         if selected_rows:
             selected_ids = [row["Mã phiếu"] for row in selected_rows]
             render_bulk_action_bar(
@@ -488,5 +659,6 @@ def render(analysis: Dict[str, Any]) -> None:
             "edit": lambda payload: _dialog_edit(payload, analysis),
             "delete": lambda payload: _dialog_delete(payload, analysis),
             "bulk_delete": lambda payload: _dialog_bulk_delete(payload, analysis),
+            "delete_all": lambda payload: _dialog_delete_all(payload, analysis),
         }
     )

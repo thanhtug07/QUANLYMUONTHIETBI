@@ -94,7 +94,8 @@ D:\Python QUan ly muon\
 │                        #   charts, tables, badges, forms, dialogs, states
 ├── styles\             # Design system: tokens.py (nguồn duy nhất) + dashboard.css
 ├── utils\              # Helper thuần cho UI (nhãn trạng thái, format ngày, icon SVG)
-├── tests\              # pytest: helper + data_store + smoke test từng page (AppTest)
+│                        #   + sample_data.py (sinh dữ liệu mẫu, không chứa Streamlit)
+├── tests\              # pytest: sample_data (16 test: sinh/chuẩn/ID/FK/ghi nối/backup/flow)
 │
 ├── data\
 │   ├── devices.csv         # Thiết bị (24 bản ghi mẫu)
@@ -136,7 +137,7 @@ Sidebar gồm 2 nhóm điều hướng và mỗi mục là một module riêng (
 
 | Nhóm | Mục | Nội dung |
 |---|---|---|
-| Quản lý | **Tổng quan** | Bộ lọc · 4 KPI · biểu đồ cột (lượt mượn theo loại) 8 phần + biểu đồ thanh ngang (trạng thái thiết bị) 4 phần · bảng phiếu mượn · cảnh báo cần xử lý · Top thiết bị / Top người mượn |
+| Quản lý | **Tổng quan** | Bộ lọc · 5 KPI · biểu đồ cột (lượt mượn theo loại) 8 phần + biểu đồ thanh ngang (trạng thái thiết bị) 4 phần · bảng phiếu mượn · cảnh báo cần xử lý · Top thiết bị / Top người mượn |
 | Quản lý | **Phiếu mượn** | Toolbar (tìm kiếm · trạng thái · khoảng thời gian · đặt lại) + bảng 9 cột; chọn dòng → Xem / Sửa / Xóa |
 | Quản lý | **Thiết bị** | Toolbar (tìm kiếm · loại · trạng thái · sắp xếp · đặt lại) + bảng (Mã, Tên, Loại, Trạng thái, Lượt mượn) + CRUD |
 | Quản lý | **Người mượn** | Toolbar (tìm kiếm · lớp · sắp xếp · đặt lại) + bảng (Mã, Họ tên, Lớp, Lượt mượn, Đang mượn) + CRUD |
@@ -163,22 +164,35 @@ Kiến trúc UI: `app.py` (điều phối) → `pages/*` (module) → `ui/*` (co
 ### Kiểm thử
 
 ```bash
-python -m pytest tests -q   # cần cài thêm pytest
+python -m pytest tests -q
 ```
 
-- `tests/test_ui.py`: helper thuần (nhãn trạng thái, lọc thời gian, format ngày, icon).
-- `tests/test_data_store.py`: CRUD ở tầng dữ liệu trên file CSV tạm (insert/update/delete,
-  mã kế tiếp, không đụng dòng khác) + validation ứng viên của form.
-- `tests/test_app_smoke.py`: chạy THẬT `app.py` bằng `streamlit.testing.v1.AppTest`
-  (KPI, biểu đồ, bảng, bộ lọc, tìm kiếm) trên trang Tổng quan.
-- `tests/test_pages.py`: render cả 7 page, điều hướng, và luồng CRUD của trang Phiếu mượn
-  (chọn dòng → action bar → dialog xem/sửa/xóa, xác nhận trước khi xóa, tạo phiếu qua form
-  rồi xoá lại; fixture tự khôi phục `data/*.csv` sau khi test).
-- `tests/test_states.py`: các khối trạng thái (hướng dẫn khởi đầu, không có kết quả,
-  lỗi dữ liệu, dải gợi ý) — kiểm tra **CTA thật sự gọi callback** khi bấm, không chỉ hiển thị chữ.
-- `tests/test_pages.py` còn kiểm tra **phân trang** (Prev/Next, địa chỉ `x–y / z`, Prev disabled
-  ở trang đầu) và **đặt trạng thái hàng loạt** cho thiết bị (đổi đúng trường `status`, không
-  đụng dòng khác).
+| File | Nội dung |
+|---|---|
+| `test_data_safety.py` (11 test) | CSV thiếu/rỗng/chỉ-header/khoảng trắng/sai encoding/thiếu cột/ngoặc kép lỗi/cột thừa/trùng mã/FK lạ/ngày sai/status lạ đều không crash |
+| `test_sample_data.py` (16 test) | Sinh mẫu đúng schema, không trùng ID, FK hợp lệ, ghi nối giữ byte cũ, backup/restore |
+| `test_crud_safety.py` (17 test) | Phân trang, update khóa lạ, bulk-status qua validation, delete count, mã kế tiếp |
+| `test_dashboard_stats.py` (8 test) | Đếm theo thứ, kỳ trước, chuỗi delta, markup pill KPI |
+| `test_ui_polish.py` (7 test) | Tokens status, variant badge, màu chart, CSS dùng biến |
+| `test_app_pages.py` (5 test) + `test_borrowing_header_actions.py` (4 test) | AppTest 7 trang + nút header bảng phiếu |
+| `test_alerts_filter.py` (3 test) | Lọc cảnh báo theo query/severity/kết hợp |
+
+Tổng: **71 test**, toàn bộ xanh (`python -m pytest tests -q`).
+
+### Kiến thức Python được sử dụng
+
+| Kiến thức | Thể hiện ở |
+|---|---|
+| Function, Module | Mọi file đều là module hàm thuần (cleaners/validators/statistics/reports) |
+| String | `normalize_text`, `normalize_id`, chuẩn hóa mã/trạng thái (cleaners) |
+| List, Tuple | Danh sách bản ghi (List); Top-N `(mã, lượt)` và `DEVICE_COLUMNS` (Tuple) |
+| Range | Sinh mã kế tiếp, chia trang, kiểm tra theo dòng |
+| Dictionary | `devices_by_id`/`borrowers_by_id` tra cứu O(1) + JOIN (statistics) |
+| Set | Đối chiếu FK, trùng mã, mâu thuẫn danh mục, thất thoát (validators, 14 điểm dùng) |
+| CSV | Đọc/ghi toàn bộ qua `csv` + atomic write (data_store) |
+| try/except | File thiếu/rỗng/sai encoding không crash (cleaners + data_store) |
+| lambda, sorted | `sorted(..., key=lambda ...)` xếp Top-N, quá hạn, tháng (statistics ×5) |
+| Streamlit | Dashboard 7 module (app.py + pages/ + ui/) |
 
 Mọi thay đổi dữ liệu (upload CSV hoặc sửa file trong `data/`) đều đi qua
 **toàn bộ pipeline**:
@@ -258,22 +272,57 @@ chỉ tồn tại tạm thời và **mất đi khi app ngủ/restart/redeploy** 
 
 Demo/bảo vệ thì chạy **local** là chuẩn nhất; bản cloud dùng để xem giao diện.
 
+### Known limitations (giới hạn đã biết)
+
+| Giới hạn | Biểu hiện | Cách xử lý |
+|---|---|---|
+| Cloud ephemeral (không ổ đĩa bền) | CRUD trên cloud mất sau restart/redeploy | Chạy local hoặc Export CSV sau khi nhập |
+| Font chart là webfont | Biểu đồ Altair/Vega dùng `Source Sans 3`, nếu máy chặn Google Fonts sẽ rớt về `Segoe UI`/sans-serif hệ thống | Không ảnh hưởng số liệu; giao diện vẫn đọc tốt |
+| Bảng rộng trên màn hình hẹp | Streamlit cho cuộn ngang trong khối bảng; header bảng "dính" theo cơ chế mặc định của Streamlit | Dùng màn hình ≥1024px để xem đủ 9 cột phiếu mượn |
+| Animation tôn trọng `prefers-reduced-motion` | Máy bật giảm chuyển động sẽ thấy giao diện tĩnh (không page-enter/KPI stagger) | Chủ đích vì accessibility, không phải lỗi |
+| Cache theo mtime | `st.cache_data` khóa theo mtime_ns của 3 file CSV; sửa file bằng tay trong lúc app chạy vẫn tự làm mới ở rerun kế tiếp | Nhấn Rerun nếu vừa sửa file ngoài app |
+
 ---
 
 ## 🧪 Dữ liệu mẫu (sample data)
 
 Các file CSV trong `data/` (header tiếng Anh, ngày dạng `dd/mm/yyyy`) hiện có:
-**24 thiết bị, 12 người mượn, 63 dòng phiếu mượn** (62 phiếu hợp lệ sau khi làm
-sạch) — bao gồm đủ tình huống:
+**60 thiết bị** (Laptop, Máy chiếu, Tablet, Màn hình, Camera, Loa, Micro, Chuột,
+Bàn phím, Ổ điện, Phấn - Bảng, Đèn - Quạt, Cáp - Điều khiển), **250 người mượn**,
+**276 dòng phiếu mượn thô (275 phiếu hợp lệ sau làm sạch, 11 bản ghi lỗi)**
+— bao gồm đủ tình huống:
 trả đúng hạn, trả muộn, đang mượn, quá hạn, thiết bị thất thoát, cùng một số dòng
 lỗi chủ đích để kiểm thử `cleaners` / `validators`.
 
 - `devices.csv`: `device_id,device_name,category,status`
-- `borrowers.csv`: `borrower_id,name,class_name`
+- `borrowers.csv`: `borrower_id,name,class_name,phone` (`borrower_id` là mã sinh viên; `phone` tuỳ chọn, nếu nhập phải 10 số bắt đầu bằng 0)
 - `borrow_records.csv`: `borrow_id,borrower_id,device_id,borrow_date,due_date,return_date,status`
 
 > Có thể thay thế dữ liệu ở trang **Dữ liệu CSV** (upload + kiểm tra đủ cột + xác nhận) —
 > dữ liệu luôn đi qua toàn bộ pipeline (cleaners → validators → statistics).
+
+### Thêm dữ liệu mẫu (trang Dữ liệu CSV)
+
+Card **"Dữ liệu mẫu"** cho phép thêm nhanh dữ liệu demo/test trực tiếp trên giao diện:
+
+- Button **"+ Thêm dữ liệu mẫu"** (primary) → dialog xác nhận: chọn số lượng
+  mỗi loại (`5 / 10 / 20 / 50` — phiếu mượn sinh gấp đôi để đủ tình huống),
+  tick chọn loại (`Thiết bị / Người mượn / Phiếu mượn`), xem tổng
+  (`Thiết bị +10 · Người mượn +10 · Phiếu mượn +20 · Tổng +40`) rồi **Xác nhận thêm**.
+- Dữ liệu được **ghi nối** vào đúng 3 file CSV hiện tại (`devices.csv`,
+  `borrowers.csv`, `borrow_records.csv`) — không database, không API.
+- **Không trùng ID:** mã mới nối tiếp mã lớn nhất đang có
+  (qua `data_store.next_sequential_id`, ví dụ `TB060 → TB061`), không hardcode.
+- **Hợp lệ:** mọi bản ghi đều qua `validators.validate_candidate_*` trước khi ghi;
+  phiếu mới đủ variation (đã trả / đang mượn / quá hạn / thất thoát), FK luôn
+  trỏ tới mã tồn tại, ngày thỏa `borrow_date ≤ due_date`.
+- Ghi qua `data_store.write_rows` (**atomic**, giữ nguyên dòng cũ),
+  xong tự **xóa cache + rerun** nên dashboard/biểu đồ/cảnh báo cập nhật ngay.
+- Button **"Khôi phục dữ liệu mẫu"** (riêng một cấp, có xác nhận + cảnh báo):
+  hoàn tác lần thêm gần nhất từ bản sao lưu tự động trong `data/.sample_backup/`
+  (được tạo trước mỗi lần ghi). Chưa có sao lưu thì button disabled.
+
+> ⚠ Dữ liệu demo được **ghi trực tiếp vào CSV thật** (giống mọi thao tác CRUD).
 
 ---
 
@@ -285,3 +334,15 @@ lỗi chủ đích để kiểm thử `cleaners` / `validators`.
 - **Phase 3 ✅:** tách tầng UI, design system, SaaS shell 7 module + CRUD ghi thẳng vào CSV.
 - **Phase 4 (mở):** tinh chỉnh quy tắc (ngưỡng thất thoát), nâng cao phần làm sạch
   (dữ liệu nhiễu, tập dữ liệu lớn), bổ sung nhật ký thao tác nếu cần.
+
+---
+
+## ▶️ Demo flow (5 phút)
+
+1. `streamlit run app.py` → trang **Dashboard**: 5 KPI + pill delta (bật filter "30 ngày" để thấy delta so kỳ trước).
+2. Biểu đồ **Ngày mượn nhiều nhất** (cột đỉnh tô đậm) + **gauge Tỷ lệ đúng hạn** → nút "Xem báo cáo".
+3. Trang **Phiếu mượn**: tìm kiếm, lọc trạng thái, nút "Mới nhất", chọn dòng → Xem/Sửa/Xóa (ô mã khóa khi sửa).
+4. Trang **Cảnh báo**: 3 nhóm Quá hạn / Thất thoát / Cần kiểm tra, bấm Chi tiết từng mục.
+5. Trang **Dữ liệu CSV**: "+ Thêm dữ liệu mẫu" (chọn số lượng, xác nhận, dashboard cập nhật ngay) và "Khôi phục" để hoàn tác.
+6. `python main.py` → xem tóm tắt console + `output/report.txt`.
+7. `python -m pytest tests -q` → toàn bộ test xanh.

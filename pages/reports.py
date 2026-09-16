@@ -29,6 +29,18 @@ from utils.helpers import esc
 WARNING_LIMIT = 10
 
 
+def warning_severity(text: str) -> str:
+    """
+    Mức độ của một cảnh báo nghiệp vụ (thuần để test được): "danger" cho mất
+    mát/tham chiếu gãy/trùng mã, "warning" cho các lỗi dữ liệu còn lại.
+    """
+    lowered = str(text or "").lower()
+    if ("quá hạn" in lowered or "thất thoát" in lowered
+            or "không tồn tại" in lowered or "trùng mã" in lowered):
+        return "danger"
+    return "warning"
+
+
 def _render_warnings(warnings: Sequence[str]) -> None:
     if not warnings:
         render_empty_state(
@@ -39,11 +51,12 @@ def _render_warnings(warnings: Sequence[str]) -> None:
         )
         return
 
-    items = "".join(
-        f'<div class="alert-item"><div class="alert-body">{esc(warning)}</div></div>'
+    rows = "".join(
+        f'<div class="warning-row sev-{warning_severity(warning)}" role="listitem">'
+        f'<span class="alert-marker"></span><span>{esc(warning)}</span></div>'
         for warning in list(warnings)[:WARNING_LIMIT]
     )
-    st.markdown(items, unsafe_allow_html=True)
+    st.markdown(f'<div class="warning-list" role="list">{rows}</div>', unsafe_allow_html=True)
     remaining = len(warnings) - WARNING_LIMIT
     if remaining > 0:
         st.markdown(
@@ -108,8 +121,16 @@ def render(analysis: Dict[str, Any]) -> None:
         render_monthly_trend(monthly, sum(count for _, count in monthly))
 
     # ------------------------------------------------------------------
-    # Xếp hạng + cảnh báo nghiệp vụ
+    # Xếp hạng + cảnh báo nghiệp vụ (cảnh báo trước: ưu tiên xử lý)
     # ------------------------------------------------------------------
+    with st.container(border=True):
+        card_header(
+            "Cảnh báo nghiệp vụ",
+            "Tổng hợp từ kiểm tra dữ liệu tự động.",
+            chip=str(len(analysis.get("warnings", []))),
+        )
+        _render_warnings(analysis.get("warnings", []))
+
     rank_left, rank_right = two_column_grid()
 
     with rank_left:
@@ -126,29 +147,18 @@ def render(analysis: Dict[str, Any]) -> None:
                 stats.get("top_borrowers", [])[:5], stats.get("borrowers_by_id", {}), "name"
             )
 
-    with st.container(border=True):
-        card_header(
-            "Cảnh báo nghiệp vụ",
-            "Tổng hợp từ tầng kiểm tra dữ liệu của pipeline.",
-            chip=str(len(analysis.get("warnings", []))),
-        )
-        _render_warnings(analysis.get("warnings", []))
-
     # ------------------------------------------------------------------
-    # Báo cáo văn bản (reports.build_report_text — không tính lại số liệu)
+    # Báo cáo văn bản (reports.build_report_text — không tính lại số liệu).
+    # Gọn trong expander vì nội dung dài mà số liệu đã có ở các chart phía trên.
     # ------------------------------------------------------------------
-    with st.container(border=True):
-        card_header(
-            "Báo cáo tổng hợp",
-            "Nội dung do reports.build_report_text sinh từ kết quả thống kê.",
-        )
-        report_text = str(analysis.get("report_text", "")).strip()
+    report_text = str(analysis.get("report_text", "")).strip()
+    with st.expander("Báo cáo tổng hợp (văn bản)", expanded=False):
         if report_text:
             st.code(report_text, language=None)
         else:
             render_empty_state(
                 "Chưa có nội dung báo cáo.",
-                "Báo cáo được tạo khi pipeline đọc được dữ liệu hợp lệ.",
+                "Báo cáo được tạo khi có dữ liệu hợp lệ.",
                 "report",
                 compact=True,
             )

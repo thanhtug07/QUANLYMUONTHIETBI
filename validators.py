@@ -36,7 +36,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from cleaners import make_error, parse_date
+from cleaners import is_valid_phone, make_error, parse_date
 
 #: Ngưỡng quá hạn để coi thiết bị là THẤT THOÁT (ngày).
 LOST_THRESHOLD_DAYS: int = 30
@@ -315,6 +315,44 @@ def find_category_conflicts(
 #    để form nhập liệu không bao giờ tự định nghĩa lại validation.
 # ----------------------------------------------------------------------
 
+def find_busy_device_conflicts(
+    candidates: List[Dict[str, Any]], existing_records: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """
+    Chặn mượn thiết bị ĐANG BỊ MƯỢN: ứng viên có trạng thái active
+    (borrowing / overdue / lost) mà thiết bị đã có phiếu active khác
+    (khác borrow_id) thì không được tạo/sửa.
+
+    Chỉ dùng cho đường CREATE/UPDATE (`validate_candidate_record`); KHÔNG dùng
+    trong `validate_all` để dữ liệu lịch sử có sẵn không bị gắn cờ hàng loạt.
+    """
+    busy_by_device: Dict[str, str] = {}
+    for row in existing_records:
+        if str(row.get("status", "")).strip() in BUSY_RECORD_STATUSES:
+            device_id = str(row.get("device_id", "")).strip()
+            if device_id:
+                busy_by_device.setdefault(
+                    device_id, str(row.get("borrow_id", "")).strip() or "?"
+                )
+
+    errors: List[Dict[str, Any]] = []
+    for candidate in candidates:
+        if str(candidate.get("status", "")).strip() not in BUSY_RECORD_STATUSES:
+            continue
+        device_id = str(candidate.get("device_id", "")).strip()
+        if not device_id or device_id not in busy_by_device:
+            continue
+        errors.append(
+            make_error(
+                _row_no(candidate), "device_id", device_id,
+                f"Thiết bị '{device_id}' đang được mượn ở phiếu "
+                f"'{busy_by_device[device_id]}' — trả thiết bị trước khi mượn tiếp",
+                "borrow_records",
+            )
+        )
+    return errors
+
+
 def _without_key(rows: List[Dict[str, Any]], key_field: str, key_value: Any) -> List[Dict[str, Any]]:
     """Bỏ các dòng có cùng khoá (khi EDIT, bản ghi cũ không tính là trùng chính nó)."""
     target = str(key_value or "").strip().upper()
@@ -347,6 +385,13 @@ def validate_candidate_borrower(
     errors = find_missing_required(
         [candidate], ["borrower_id", "name", "class_name"], "borrowers")
     errors += find_duplicate_ids(others + [candidate], "borrower_id", "borrowers")[0]
+    phone = str(candidate.get("phone", "") or "").strip()
+    if phone and not is_valid_phone(phone):
+        errors.append(
+            make_error(int(candidate.get("_row_no", 0)), "phone", candidate.get("phone"),
+                       "Số điện thoại không hợp lệ (cần 10 số, bắt đầu bằng 0)",
+                       "borrowers")
+        )
     return errors
 
 
@@ -361,8 +406,8 @@ def validate_candidate_record(
     Kiểm tra một phiếu mượn ứng viên (thêm mới hoặc sửa).
 
     Gồm: trường bắt buộc, trùng mã phiếu, tham chiếu thiết bị/người mượn
-    không tồn tại, logic ngày và logic trạng thái — tất cả tái sử dụng
-    nguyên các hàm kiểm tra phía trên.
+    không tồn tại, logic ngày, logic trạng thái và thiết bị đang bị mượn —
+    tất cả tái sử dụng nguyên các hàm kiểm tra phía trên.
     """
     others = _without_key(existing_records, "borrow_id", candidate.get("borrow_id")) if editing else list(existing_records)
     valid_device_ids = {str(d.get("device_id", "")).strip() for d in devices} - {""}
@@ -375,6 +420,7 @@ def validate_candidate_record(
     errors += find_unknown_references([candidate], valid_device_ids, valid_borrower_ids)[0]
     errors += find_date_logic_errors([candidate])
     errors += find_status_logic_errors([candidate])
+    errors += find_busy_device_conflicts([candidate], others)
     return errors
 
 

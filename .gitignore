@@ -9,6 +9,9 @@ __pycache__/
 # Dữ liệu sinh ra khi chạy pipeline (report.txt được tạo lại bằng `python main.py`)
 output/
 
+# Bản sao lưu tự động trước mỗi lần thêm dữ liệu mẫu (tạo lại bằng UI)
+data/.sample_backup/
+
 # Trình quản lý dữ liệu nhạy cảm của Streamlit
 .streamlit/secrets.toml
 

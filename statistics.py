@@ -21,11 +21,10 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import date
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import validators
 from cleaners import parse_date
-from validators import LOST_THRESHOLD_DAYS  # re-export cho app/report dùng chung
 
 #: Trạng thái phiếu = đang mượn (chưa trả).
 ACTIVE_RECORD_STATUSES: frozenset = frozenset({"borrowing", "overdue"})
@@ -64,6 +63,7 @@ def build_borrowers_by_id(borrowers: List[Dict[str, Any]]) -> Dict[str, Dict[str
         str(b.get("borrower_id", "")).strip(): {
             "name": b.get("name", ""),
             "class_name": b.get("class_name", ""),
+            "phone": b.get("phone", ""),
         }
         for b in borrowers if str(b.get("borrower_id", "")).strip()
     }
@@ -221,6 +221,45 @@ def borrows_by_month(records: List[Dict[str, Any]]) -> List[Tuple[str, int]]:
         if parsed is not None:
             counter[f"{parsed.year:04d}-{parsed.month:02d}"] += 1
     return sorted(counter.items(), key=lambda item: item[0])
+
+
+#: Thứ tự các ngày trong tuần cho biểu đồ (Thứ 2 -> Chủ nhật).
+WEEKDAY_LABELS: Tuple[str, ...] = (
+    "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật",
+)
+
+
+def borrows_by_weekday(records: List[Dict[str, Any]]) -> List[Tuple[str, int]]:
+    """
+    Số lượt mượn theo NGÀY TRONG TUẦN (Thứ 2 -> Chủ nhật), đủ 7 nhãn kể cả
+    ngày 0 lượt để biểu đồ cột luôn có trục ổn định.
+
+    Mốc ngày giống `borrows_by_month` (borrow_date, thiếu thì due_date);
+    phiếu không parse được ngày nào thì bỏ qua — không bịa số liệu.
+    """
+    counter: Counter = Counter()
+    for row in records:
+        parsed = parse_date(row.get("borrow_date")) or parse_date(row.get("due_date"))
+        if parsed is not None:
+            counter[parsed.weekday()] += 1
+    return [(WEEKDAY_LABELS[day], counter.get(day, 0)) for day in range(7)]
+
+
+def format_delta(current: float, previous: float) -> Optional[str]:
+    """
+    Chuỗi pill delta kỳ ("+12,5%" / "-8,0%") cho KPI Dashboard.
+
+    Trả về None khi kỳ trước bằng 0 (không có cơ sở so sánh) — caller ẨN pill
+    thay vì bịa số. Dấu trừ dùng U+2212 cho đẹp typography.
+    """
+    if previous == 0:
+        return None
+    pct = 100.0 * (current - previous) / abs(previous)
+    text = f"{abs(pct):.1f}%".replace(".", ",")
+    if abs(pct) < 0.05:
+        return "0,0%"
+    sign = "+" if pct > 0 else "−"
+    return f"{sign}{text}"
 
 
 # ----------------------------------------------------------------------
@@ -409,6 +448,7 @@ def compute_all(
         # Xếp hạng / nhóm
         "borrows_by_category": borrows_by_category(records, devices_by_id),
         "borrows_by_month": borrows_by_month(records),
+        "borrows_by_weekday": borrows_by_weekday(records),
         "top_devices": top_devices_by_borrows(records),
         "top_borrowers": top_borrowers_by_borrows(records),
         "overdue_days": overdue_days_list(records, today),

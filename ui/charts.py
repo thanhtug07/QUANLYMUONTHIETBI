@@ -11,7 +11,7 @@ validators — module này không tạo, không nội suy, không bịa dữ li�
 """
 from __future__ import annotations
 
-from typing import Dict, List, Sequence, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 
 import altair as alt
 import pandas as pd
@@ -21,15 +21,38 @@ from styles import tokens
 from ui.states import render_empty_state
 from utils.helpers import esc, month_label
 
-#: Chiều cao biểu đồ mặc định (giữ hai card analytics cân bằng nhau).
-CHART_HEIGHT = 268
+#: Chiều cao biểu đồ (gọn để vừa viewport, vẫn đủ đọc số liệu).
+CHART_HEIGHT = 240
 
 #: Font cho Vega-Lite (lấy từ design tokens).
 CHART_FONT = tokens.FONT_NAME
 
-#: Màu theo trạng thái thiết bị — CHỈ dùng màu trong palette (thang sáng/tối):
-#: nhạt = bình thường, đậm = cần chú ý. Nhãn chữ vẫn là thông tin chính.
-STATUS_COLOR_SCALE = [tokens.COLOR_BORDER, tokens.COLOR_ACCENT, tokens.COLOR_PRIMARY, tokens.COLOR_TEXT]
+#: Màu biểu đồ theo TÊN trạng thái — cùng `styles/tokens.STATUS` với badge nên
+#: badge và chart luôn cùng một visual meaning (nhãn chữ vẫn là chính).
+STATUS_CHART_COLORS = {
+    "Sẵn sàng": tokens.STATUS["success"]["base"],
+    "Đã trả": tokens.STATUS["success"]["base"],
+    "Đang mượn": tokens.STATUS["info"]["base"],
+    "Bảo trì": tokens.STATUS["warning"]["base"],
+    "Quá hạn": tokens.STATUS["warning"]["base"],
+    "Thất thoát": tokens.STATUS["danger"]["base"],
+}
+
+#: Fallback khi gặp nhãn ngoài 6 trạng thái chuẩn (giữ trong palette).
+STATUS_COLOR_FALLBACK = tokens.COLOR_ACCENT
+
+
+def _status_colors(labels: Sequence[str]) -> List[str]:
+    """Màu từng nhãn trạng thái theo đúng thứ tự labels (khớp domain)."""
+    return [STATUS_CHART_COLORS.get(str(label), STATUS_COLOR_FALLBACK) for label in labels]
+
+
+def _status_color_encoding(field: str, labels: Sequence[str]) -> alt.Color:
+    """Encoding màu Altair với domain/range tường minh — màu luôn khớp nhãn."""
+    return alt.Color(
+        f"{field}:N",
+        scale=alt.Scale(domain=list(labels), range=_status_colors(labels)),
+    )
 
 
 def _axis_labels(**overrides: object) -> alt.Axis:
@@ -101,46 +124,6 @@ def render_category_chart(rows: Sequence[Tuple[str, int]], footer_total: int) ->
     )
 
 
-def render_status_bars(counts: Dict[str, int], footer_total: int) -> None:
-    """
-    Biểu đồ THANH NGANG — "Trạng thái thiết bị" (dạng so sánh).
-
-    `counts` là số lượng thiết bị thật theo từng trạng thái trong danh mục
-    đang hiển thị. Tổng bằng 0 -> empty state.
-    """
-    if not counts or sum(counts.values()) == 0:
-        render_empty_state(
-            "Chưa có dữ liệu trạng thái thiết bị.",
-            "Danh mục thiết bị đang trống theo bộ lọc hiện tại.",
-            "monitor",
-            compact=True,
-        )
-        return
-
-    frame = pd.DataFrame({"Trạng thái": list(counts.keys()), "Số lượng": list(counts.values())})
-    chart = (
-        alt.Chart(frame)
-        .mark_bar(color=tokens.COLOR_ACCENT, cornerRadiusTopRight=3, cornerRadiusBottomRight=3)
-        .encode(
-            x=alt.X("Số lượng:Q", title=None, axis=_value_axis()),
-            y=alt.Y("Trạng thái:N", title=None, sort="-x", axis=_axis_labels(labelLimit=120, grid=False)),
-            tooltip=[
-                alt.Tooltip("Trạng thái:N", title="Trạng thái"),
-                alt.Tooltip("Số lượng:Q", title="Số lượng"),
-            ],
-        )
-        .properties(height=CHART_HEIGHT, background="transparent")
-        .configure_view(stroke=None, fill="transparent")
-        .configure(font=CHART_FONT)
-    )
-    st.altair_chart(chart, width="stretch")
-    st.markdown(
-        f'<div class="chart-footer"><span>Thiết bị trong danh mục</span>'
-        f"<strong>{footer_total}</strong></div>",
-        unsafe_allow_html=True,
-    )
-
-
 def render_status_donut(counts: Dict[str, int], center_label: str) -> None:
     """
     Biểu đồ DONUT — "Phân bố trạng thái thiết bị" (trang Báo cáo).
@@ -160,6 +143,7 @@ def render_status_donut(counts: Dict[str, int], center_label: str) -> None:
 
     frame = pd.DataFrame({"Trạng thái": list(counts.keys()), "Số lượng": list(counts.values())})
     total = int(sum(counts.values()))
+    labels = list(counts.keys())
 
     donut = (
         alt.Chart(frame)
@@ -168,7 +152,7 @@ def render_status_donut(counts: Dict[str, int], center_label: str) -> None:
             theta=alt.Theta("Số lượng:Q", stack=True),
             color=alt.Color(
                 "Trạng thái:N",
-                scale=alt.Scale(range=STATUS_COLOR_SCALE[: len(frame)]),
+                scale=alt.Scale(domain=labels, range=_status_colors(labels)),
                 legend=alt.Legend(
                     orient="bottom",
                     title=None,
@@ -271,44 +255,99 @@ def render_trend_area(
     )
 
 
-def render_top_category_chart(rows: Sequence[Tuple[str, int]]) -> None:
+def render_weekday_bars(rows: Sequence[Tuple[str, int]]) -> None:
     """
-    Biểu đồ THANH NGANG — "Top loại thiết bị được mượn" (bổ trợ, gọn).
+    Biểu đồ CỘT — "Ngày mượn nhiều nhất trong tuần" (Most Day Active).
 
-    `rows` đã giảm dần từ statistics; hiển thị tối đa 6 nhóm đầu.
+    `rows` = statistics.borrows_by_weekday (đủ 7 nhãn Thứ 2 -> Chủ nhật, kể cả
+    0 lượt để trục ổn định). Cột cao nhất tô đậm + nhãn số trên đỉnh; các cột
+    còn lại nhạt. Không có lượt nào -> empty state (không bịa đỉnh giả).
     """
-    if not rows:
+    counts = [int(count) for _, count in rows]
+    if not rows or sum(counts) == 0:
         render_empty_state(
-            "Chưa có dữ liệu xếp hạng loại thiết bị.",
-            "Số liệu sẽ xuất hiện khi có phiếu mượn phù hợp bộ lọc.",
-            "box",
+            "Chưa có dữ liệu theo ngày trong tuần.",
+            "Số liệu sẽ xuất hiện khi có phiếu mượn với ngày hợp lệ.",
+            "clock",
             compact=True,
         )
         return
 
-    top = list(rows)[:6]
-    frame = pd.DataFrame(top, columns=["Loại thiết bị", "Số lượt"])
-    chart = (
-        alt.Chart(frame)
-        .mark_bar(color=tokens.COLOR_ACCENT, cornerRadiusTopRight=3, cornerRadiusBottomRight=3)
-        .encode(
-            x=alt.X("Số lượt:Q", title=None, axis=_value_axis()),
-            y=alt.Y(
-                "Loại thiết bị:N",
-                title=None,
-                sort=list(dict(top).keys()),
-                axis=_axis_labels(labelLimit=140, grid=False),
-            ),
-            tooltip=[
-                alt.Tooltip("Loại thiết bị:N", title="Loại thiết bị"),
-                alt.Tooltip("Số lượt:Q", title="Số lượt"),
-            ],
+    peak = max(counts)
+    peak_label = next(label for label, count in rows if int(count) == peak)
+    frame = pd.DataFrame(
+        {"Ngày": [label for label, _ in rows], "Số lượt": counts}
+    )
+    base = alt.Chart(frame).encode(
+        x=alt.X("Ngày:N", title=None, sort=None,
+                axis=_axis_labels(labelLimit=80, grid=False)),
+        y=alt.Y("Số lượt:Q", title=None, axis=_value_axis()),
+        tooltip=[
+            alt.Tooltip("Ngày:N", title="Ngày"),
+            alt.Tooltip("Số lượt:Q", title="Số lượt"),
+        ],
+    )
+    bars = base.mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
+        color=alt.condition(
+            alt.datum["Số lượt"] == peak,
+            alt.value(tokens.STATUS["info"]["base"]),
+            alt.value(tokens.COLOR_BORDER),
         )
-        .properties(height=max(120, 34 * len(top) + 24), background="transparent")
+    )
+    labels = base.mark_text(dy=-8, fontSize=12, fontWeight="bold", color=tokens.COLOR_TEXT).encode(
+        text="Số lượt:Q"
+    )
+    chart = (
+        (bars + labels)
+        .properties(height=232, background="transparent")
         .configure_view(stroke=None, fill="transparent")
         .configure(font=CHART_FONT)
     )
     st.altair_chart(chart, width="stretch")
+    st.markdown(
+        f'<div class="chart-footer"><span>Ngày cao điểm</span>'
+        f"<strong>{esc(peak_label)} · {peak}</strong></div>",
+        unsafe_allow_html=True,
+    )
+
+
+def render_rate_gauge(rate: float, caption: str) -> None:
+    """
+    Gauge BÁN NGUYỆT cho tỷ lệ 0–100 (VD: tỷ lệ trả đúng hạn).
+
+    Vẽ bằng 2 cung Altair: track nhạt 180° + cung giá trị theo đúng tỷ lệ thật
+    + số % ở giữa. `rate` ngoài khoảng sẽ bị kẹp về [0, 100], không crash.
+    """
+    try:
+        value = max(0.0, min(100.0, float(rate)))
+    except (TypeError, ValueError):
+        value = 0.0
+    track = (
+        alt.Chart(pd.DataFrame({"frac": [1.0]}))
+        .mark_arc(innerRadius=58, outerRadius=86, cornerRadius=4,
+                  color=tokens.COLOR_BORDER, opacity=0.55)
+        .encode(theta=alt.Theta("frac:Q", scale=alt.Scale(domain=[0, 1], range=[0, 3.14159])))
+    )
+    fill = (
+        alt.Chart(pd.DataFrame({"frac": [value / 100.0]}))
+        .mark_arc(innerRadius=58, outerRadius=86, cornerRadius=4,
+                  color=tokens.STATUS["success"]["base"])
+        .encode(theta=alt.Theta("frac:Q", scale=alt.Scale(domain=[0, 1], range=[0, 3.14159])))
+    )
+    number = (
+        alt.Chart(pd.DataFrame({"text": [f"{value:.1f}%".replace(".", ",")]}))
+        .mark_text(fontSize=30, fontWeight="bold", color=tokens.COLOR_TEXT, dy=6)
+        .encode(text="text:N")
+    )
+    chart = (
+        (track + fill + number)
+        .properties(height=190, background="transparent")
+        .configure_view(stroke=None, fill="transparent")
+        .configure(font=CHART_FONT)
+    )
+    st.markdown('<div class="gauge-wrap">', unsafe_allow_html=True)
+    st.altair_chart(chart, width="stretch")
+    st.markdown(f'<div class="gauge-caption">{esc(caption)}</div></div>', unsafe_allow_html=True)
 
 
 def render_activity_timeline(
@@ -371,7 +410,10 @@ def render_activity_timeline(
             f"</div></li>"
         )
 
-    st.markdown(f'<ul class="timeline">{"".join(items)}</ul>', unsafe_allow_html=True)
+    st.markdown(
+        f'<ul class="timeline" role="list" aria-label="Hoạt động mượn gần đây">{"".join(items)}</ul>',
+        unsafe_allow_html=True,
+    )
 
 
 def month_label_day(value: Any) -> str:

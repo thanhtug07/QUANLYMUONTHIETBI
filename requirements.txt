@@ -1,3 +1,7 @@
-streamlit>=1.36
-pandas>=2.0
-altair>=5.0
+# Runtime (import thật trong app/pages/ui)
+streamlit>=1.45  # frontend duy nhất; >=1.45 vì dùng width="stretch" + st.dialog
+pandas>=2.0      # dựng DataFrame cho st.dataframe / export CSV (ui/tables.py)
+altair>=5.0      # biểu đồ dashboard/báo cáo (ui/charts.py)
+
+# Test (chạy bộ kiểm thử trong tests/ bằng `python -m pytest tests -q`)
+pytest>=8.0

@@ -88,7 +88,7 @@ DEVICE_STATUS_BUCKETS: Tuple[str, ...] = ("Sẵn sàng", "Đang mượn", "Bảo
 
 #: Tuỳ chọn sắp xếp của các bảng danh mục.
 DEVICE_SORT_OPTIONS: List[str] = ["Mã thiết bị", "Tên thiết bị", "Loại thiết bị", "Lượt mượn"]
-BORROWER_SORT_OPTIONS: List[str] = ["Mã người mượn", "Họ tên", "Lớp", "Lượt mượn"]
+BORROWER_SORT_OPTIONS: List[str] = ["Mã sinh viên", "Họ tên", "Lớp", "Lượt mượn"]
 
 
 # ----------------------------------------------------------------------
@@ -200,9 +200,10 @@ def borrower_rows(
     active_counts = active_counts or {}
     return [
         {
-            "Mã người mượn": str(borrower.get("borrower_id", "")).strip(),
+            "Mã sinh viên": str(borrower.get("borrower_id", "")).strip(),
             "Họ tên": str(borrower.get("name", "")).strip(),
             "Lớp": str(borrower.get("class_name", "")).strip(),
+            "Điện thoại": str(borrower.get("phone", "") or "").strip() or "—",
             "Lượt mượn": str(borrow_counts.get(str(borrower.get("borrower_id", "")).strip(), 0)),
             "Đang mượn": str(active_counts.get(str(borrower.get("borrower_id", "")).strip(), 0)),
         }
@@ -246,6 +247,47 @@ def filter_records(
         result = [
             row for row in result if str(row.get("device_id", "")).strip() in lost_device_ids
         ]
+    return stat_mod.search_records(
+        result, search, devices_by_id=devices_by_id, borrowers_by_id=borrowers_by_id
+    )
+
+
+def apply_listing_filters(
+    records: Sequence[Dict[str, Any]],
+    category: str = "Tất cả",
+    status: str = "Tất cả",
+    search: str = "",
+    devices_by_id: Optional[Dict[str, Dict[str, Any]]] = None,
+    borrowers_by_id: Optional[Dict[str, Dict[str, Any]]] = None,
+    today: Optional[date] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Lọc loại thiết bị + trạng thái + tìm kiếm (KHÔNG gồm thời gian).
+
+    Dùng chung cho kỳ hiện tại và kỳ trước (pill delta KPI ở Tổng quan): cả hai
+    kỳ chịu cùng điều kiện phi thời gian nên delta so sánh công bằng. Muốn lọc
+    cả thời gian thì dùng `filter_records` — không copy block này sang page.
+    """
+    devices_by_id = devices_by_id or {}
+    borrowers_by_id = borrowers_by_id or {}
+    today = today or date.today()
+
+    result = list(records)
+    if category != "Tất cả":
+        result = stat_mod.filter_by_category(result, category, devices_by_id)
+
+    if status == "Đang mượn":
+        result = stat_mod.filter_by_status(result, "borrowing")
+    elif status == "Đã trả":
+        result = stat_mod.filter_by_status(result, "returned")
+    elif status == "Quá hạn":
+        result = stat_mod.filter_overdue(result, today)
+    elif status == "Thất thoát":
+        lost_device_ids = set(validators.find_lost_devices(result, today))
+        result = [
+            row for row in result if str(row.get("device_id", "")).strip() in lost_device_ids
+        ]
+
     return stat_mod.search_records(
         result, search, devices_by_id=devices_by_id, borrowers_by_id=borrowers_by_id
     )
@@ -296,9 +338,10 @@ def borrower_detail_rows(
 ) -> List[Tuple[str, str]]:
     """Các cặp (nhãn, giá trị) của một người mượn."""
     return [
-        ("Mã người mượn", str(borrower.get("borrower_id", "")).strip()),
+        ("Mã sinh viên", str(borrower.get("borrower_id", "")).strip()),
         ("Họ tên", str(borrower.get("name", "")).strip()),
         ("Lớp", str(borrower.get("class_name", "")).strip()),
+        ("Điện thoại", str(borrower.get("phone", "") or "").strip() or "—"),
         ("Tổng lượt mượn", str(borrow_count)),
         ("Đang mượn", str(active_count)),
     ]

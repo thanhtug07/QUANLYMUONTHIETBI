@@ -16,6 +16,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 import pandas as pd
 import streamlit as st
 
+from ui.badges import status_badge
 from ui.states import render_empty_state, render_no_results
 from utils.helpers import esc, format_date, icon, status_label
 
@@ -61,42 +62,56 @@ def render_pagination(
     shown_count: int,
     filtered_count: int,
     noun: str,
+    page_size: int = PAGE_SIZE,
 ) -> None:
     """
     Thanh phân trang: '1–10 / 62 phiếu mượn' + Prev/Next (disabled đúng trạng thái).
 
     Nút là st.button thật (bàn phím/aria chuẩn); khi chỉ có 1 trang, thanh
     vẫn hiện để người dùng biết tổng số bản ghi đang hiển thị.
+
+    `page_size` PHẢI khớp số truyền cho `paginate` — trước đây cứng PAGE_SIZE
+    nên trang dùng cỡ khác (cảnh báo: 5/trang) hiện sai phạm vi dù dòng đúng.
+
+    Trang lưu trong session_state có thể đã cũ (đổi filter/search làm tổng số
+    trang co lại) nên phải kẹp về [1, total_pages] giống `paginate` — nếu không
+    dòng "41–41 / 1 phiếu mượn" sẽ hiện sai dù bảng đã tự kẹp đúng trang.
     """
-    current = int(st.session_state.get(page_key, 1) or 1)
-    start = (current - 1) * PAGE_SIZE + 1
+    stored = int(st.session_state.get(page_key, 1) or 1)
+    current = min(max(1, stored), total_pages)
+    if stored != current:
+        st.session_state[page_key] = current  # tự lành, không cần rerun thêm
+    start = (current - 1) * page_size + 1
     end = start + shown_count - 1
     range_text = f"{start}–{end} / {filtered_count} {noun}" if filtered_count else f"0 {noun}"
 
-    left, center, right = st.columns([1, 2, 1], gap="small", vertical_alignment="center")
-    with left:
-        st.button(
-            "← Trước",
-            key=f"{page_key}_prev",
-            on_click=_goto_page,
-            args=(page_key, current - 1),
-            disabled=current <= 1,
-            help="Trang trước" if current > 1 else None,
-        )
-    with center:
-        st.markdown(
-            f'<div class="pagination-info">{esc(range_text)}</div>',
-            unsafe_allow_html=True,
-        )
-    with right:
-        st.button(
-            "Sau →",
-            key=f"{page_key}_next",
-            on_click=_goto_page,
-            args=(page_key, current + 1),
-            disabled=current >= total_pages,
-            help="Trang sau" if current < total_pages else None,
-        )
+    # Bọc key riêng để CSS cho phép xuống dòng trên card hẹp (không chồng nút)
+    # và đẩy thanh xuống đáy card (cân 2 card cạnh nhau).
+    with st.container(key=f"pagination_{page_key}"):
+        left, center, right = st.columns([1, 2, 1], gap="small", vertical_alignment="center")
+        with left:
+            st.button(
+                "← Trước",
+                key=f"{page_key}_prev",
+                on_click=_goto_page,
+                args=(page_key, current - 1),
+                disabled=current <= 1,
+                help="Trang trước" if current > 1 else None,
+            )
+        with center:
+            st.markdown(
+                f'<div class="pagination-info">{esc(range_text)}</div>',
+                unsafe_allow_html=True,
+            )
+        with right:
+            st.button(
+                "Sau →",
+                key=f"{page_key}_next",
+                on_click=_goto_page,
+                args=(page_key, current + 1),
+                disabled=current >= total_pages,
+                help="Trang sau" if current < total_pages else None,
+            )
 
 
 def _goto_page(page_key: str, page: int) -> None:
@@ -415,7 +430,7 @@ def render_alerts_panel(alert_rows: Sequence[Dict[str, Any]]) -> None:
         if device:
             detail += f'<span class="alert-sep">•</span><span>{device}</span>'
         items.append(
-            f'<div class="alert-item">'
+            f'<div class="alert-item" role="listitem">'
             f'<div class="alert-top">'
             f'<div class="alert-type"><span class="alert-marker"></span>{esc(row.get("type", ""))}</div>'
             f'<div class="alert-meta">{esc(row.get("message", ""))}</div>'
@@ -423,7 +438,7 @@ def render_alerts_panel(alert_rows: Sequence[Dict[str, Any]]) -> None:
             f'<div class="alert-body"><span class="alert-id">{esc(row.get("id", ""))}</span>{detail}</div>'
             f"</div>"
         )
-    st.markdown("".join(items), unsafe_allow_html=True)
+    st.markdown(f'<div role="list">{"".join(items)}</div>', unsafe_allow_html=True)
 
     remaining = len(alert_rows) - ALERT_LIMIT
     if remaining > 0:
@@ -431,6 +446,59 @@ def render_alerts_panel(alert_rows: Sequence[Dict[str, Any]]) -> None:
             f'<div class="table-footnote">Còn {remaining} cảnh báo khác chưa hiển thị.</div>',
             unsafe_allow_html=True,
         )
+
+
+#: Số dòng tối đa của bảng thiết bị nổi bật (trang Tổng quan).
+BEST_TABLE_LIMIT = 6
+
+
+def render_top_devices_table(
+    top_devices: Sequence[Tuple[str, int]],
+    devices_by_id: Optional[Dict[str, Dict[str, Any]]] = None,
+    total_borrows: int = 0,
+) -> None:
+    """
+    Bảng "Thiết bị được mượn nhiều" — ID / Tên / Lượt / Tỷ lệ / Trạng thái.
+
+    Mọi ô đều từ dữ liệu thật (top từ statistics, tên/loại/trạng thái JOIN qua
+    devices_by_id); tỷ lệ = lượt / tổng lượt. Trạng thái dùng cùng status_badge
+    toàn app. Rỗng -> empty state.
+    """
+    items = list(top_devices)[:BEST_TABLE_LIMIT]
+    if not items or not total_borrows:
+        render_empty_state(
+            "Chưa đủ dữ liệu để xếp hạng thiết bị.",
+            "Số liệu sẽ xuất hiện khi có phiếu mượn phù hợp bộ lọc hiện tại.",
+            "box",
+            compact=True,
+        )
+        return
+
+    devices_by_id = devices_by_id or {}
+    body: List[str] = []
+    for index, (device_id, count) in enumerate(items, start=1):
+        device = devices_by_id.get(str(device_id), {})
+        name = str(device.get("device_name", "")).strip() or "—"
+        category = str(device.get("category", "")).strip()
+        share = 100.0 * int(count) / total_borrows
+        body.append(
+            f"<tr>"
+            f'<td><span class="best-rank">{index}</span></td>'
+            f'<td class="best-id">{esc(device_id)}</td>'
+            f'<td><div class="best-name">{esc(name)}</div>'
+            f'<div class="best-cat">{esc(category)}</div></td>'
+            f'<td class="num best-count">{int(count)}</td>'
+            f'<td class="num best-share">{share:.1f}%</td>'
+            f"<td>{status_badge(status_label(device.get('status', '')))}</td>"
+            f"</tr>"
+        )
+    st.markdown(
+        f'<table class="best-table"><thead><tr>'
+        f"<th>#</th><th>Mã</th><th>Tên thiết bị</th>"
+        f'<th class="num">Lượt</th><th class="num">Tỷ lệ</th><th>Trạng thái</th>'
+        f"</tr></thead><tbody>{''.join(body)}</tbody></table>",
+        unsafe_allow_html=True,
+    )
 
 
 def render_rank_panel(

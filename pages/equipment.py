@@ -197,7 +197,12 @@ def _device_form(analysis: Dict[str, Any], device: Optional[Dict[str, Any]]) -> 
     with st.form("device_form"):
         form_section("Thông tin thiết bị", "Mã thiết bị được gợi ý từ danh sách hiện có.")
         first_row = st.columns([1, 1.6], gap="medium")
-        device_id = first_row[0].text_input("Mã thiết bị", value=default_id)
+        device_id = first_row[0].text_input(
+            "Mã thiết bị",
+            value=default_id,
+            # Khoá mã khi sửa (xem chú thích tương tự ở trang Phiếu mượn).
+            disabled=editing,
+        )
         device_name = first_row[1].text_input(
             "Tên thiết bị", value=str(device.get("device_name", "")) if editing else ""
         )
@@ -354,15 +359,33 @@ def _dialog_bulk_status(payload: Dict[str, Any], analysis: Dict[str, Any]) -> No
             close_dialog()
         if apply_col.button("Áp dụng", key="bulk_status_apply", type="primary", width="stretch"):
             new_status = choice_code(DEVICE_STATUS_CHOICES, selected_label)
+            devices = analysis.get("devices", [])
+            records = analysis.get("records", [])
+            by_id = {str(d.get("device_id", "")).strip(): d for d in devices}
             changed = 0
+            skipped = 0
             for device_id in targets:
+                current = by_id.get(device_id, {})
+                candidate = {**current, "status": new_status}
+                # Cùng quy tắc với form sửa đơn (tránh available + phiếu active).
+                rule_errors = validators.validate_candidate_device(
+                    candidate, devices, existing_records=records, editing=True
+                )
+                if rule_errors:
+                    skipped += 1
+                    continue
                 if data_store.update_row(
                     main.DEVICES_CSV, DEVICE_COLUMNS, "device_id", device_id, {"status": new_status}
                 ):
                     changed += 1
             clear_data_cache()
             close_dialog()
-            if changed:
+            if skipped:
+                set_flash(
+                    f"Đã đặt {changed} thiết bị sang “{selected_label}”; "
+                    f"bỏ qua {skipped} thiết bị do vi phạm quy tắc trạng thái."
+                )
+            elif changed:
                 set_flash(f"Đã đặt {changed} thiết bị sang “{selected_label}”.")
             else:
                 set_flash("Không có thiết bị nào được cập nhật.")

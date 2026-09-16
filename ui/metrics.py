@@ -40,6 +40,11 @@ class MetricCard:
     mini: str = ""
     #: Chữ trong badge (kind="alert"); mặc định suy từ sub.
     badge: str = ""
+    #: Pill delta kỳ ("+12,5%" — chuỗi đã format từ statistics.format_delta,
+    #: None/rỗng -> ẩn pill thay vì bịa số).
+    delta: str = ""
+    #: Tone của pill delta: "good" (success) | "bad" (danger) | "" (info).
+    delta_tone: str = ""
     #: (mở rộng) danh sách field bổ sung — giữ tương thích ngược với bản cũ.
     extra: List[str] = field(default_factory=list)
 
@@ -68,6 +73,17 @@ def _foot_html(card: MetricCard) -> str:
     return f'<div class="kpi-foot">{"".join(parts)}</div>' if parts else ""
 
 
+def _delta_html(card: MetricCard) -> str:
+    """Pill delta kỳ cạnh số KPI — ẩn khi không có cơ sở so sánh."""
+    text = str(card.delta or "").strip()
+    if not text:
+        return ""
+    tone = str(card.delta_tone or "").strip().lower()
+    variant = f" {tone}" if tone in ("good", "bad") else ""
+    arrow = "▲" if text.startswith("+") else ("▼" if text.startswith(("−", "-")) else "•")
+    return f'<span class="kpi-delta{variant}">{arrow} {esc(text.lstrip("+-−"))}</span>'
+
+
 def render_metric_card(card: MetricCard) -> str:
     """Trả về markup của một thẻ KPI."""
     sub_html = (
@@ -82,7 +98,8 @@ def render_metric_card(card: MetricCard) -> str:
         f'<span class="kpi-label">{esc(card.label)}</span>'
         f'<span class="kpi-icon">{icon(card.icon_name, 18)}</span>'
         f"</div>"
-        f'<div class="kpi-value">{esc(card.value)}</div>'
+        f'<div class="kpi-value-row"><div class="kpi-value">{esc(card.value)}</div>'
+        f"{_delta_html(card)}</div>"
         f"{sub_html}{foot_html}</div>"
     )
 

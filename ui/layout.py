@@ -27,9 +27,9 @@ def setup_page() -> None:
         page_title="Quản lý mượn thiết bị",
         page_icon="📋",
         layout="wide",
-        # "auto": sidebar mở trên desktop, tự thu gọn trên màn hình hẹp
-        # (mobile không bị sidebar che hết nội dung).
-        initial_sidebar_state="auto",
+        # "expanded": sidebar luôn mở khi tải trang — người không rành công nghệ
+        # vẫn thấy ngay menu điều hướng (không bị gập rồi tưởng mất trang).
+        initial_sidebar_state="expanded",
     )
 
 
@@ -92,8 +92,8 @@ def page_header(
 
 def card_header(title: str, subtitle: str = "", chip: str = "") -> None:
     """
-    Header chuẩn của mọi card: tiêu đề (16px/600) + chip số liệu (tuỳ chọn)
-    + phụ đề metadata (12px). Dùng chung cho chart card, table card, panel.
+    Header chuẩn của mọi card: tiêu đề (18px/700) + chip số liệu (tuỳ chọn)
+    + phụ đề metadata (13px). Dùng chung cho chart card, table card, panel.
     """
     chip_html = f'<span class="card-count">{chip}</span>' if chip else ""
     subtitle_html = f'<div class="card-subtitle">{subtitle}</div>' if subtitle else ""

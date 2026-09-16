@@ -85,7 +85,31 @@ svg { max-width: 100%; }
 
 /* ---------- 02. STREAMLIT CHROME ---------- */
 [data-testid="stDecoration"] { display: none; }
-[data-testid="stToolbar"] { display: none; }
+/* Ẩn toolbar NHƯNG chừa nút mở sidebar: Streamlit 1.63 đặt
+   `stExpandSidebarButton` (nút "»") BÊN TRONG toolbar và chỉ render nó khi
+   sidebar đang gập — display:none cả toolbar sẽ giấu luôn đường mở lại.
+   `:not(:has(...))` chỉ ẩn toolbar khi không chứa nút mở. */
+[data-testid="stToolbar"]:not(:has([data-testid="stExpandSidebarButton"])) {
+  display: none;
+}
+/* Nút mở sidebar khi đang gập: pill nổi theo đúng token để luôn thấy được. */
+[data-testid="stExpandSidebarButton"] {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-md) !important;
+  padding: 6px !important;
+  box-shadow: var(--shadow-menu);
+  transition: border-color var(--motion-fast) var(--easing-standard),
+    box-shadow var(--motion-fast) var(--easing-standard);
+}
+[data-testid="stExpandSidebarButton"]:hover {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 2px 6px rgba(49, 51, 63, 0.10);
+}
+[data-testid="stExpandSidebarButton"] svg { color: var(--color-primary) !important; }
 [data-testid="stHeader"] { background: transparent; }
 .block-container,
 [data-testid="stMainBlockContainer"] {
@@ -104,7 +128,7 @@ svg { max-width: 100%; }
   background: var(--color-surface);
   border: 1px solid var(--color-border) !important;
   border-radius: var(--radius-lg) !important;
-  box-shadow: var(--shadow-subtle);
+  box-shadow: var(--shadow-card);
   padding: var(--spacing-xl) !important;
 }
 
@@ -139,7 +163,7 @@ svg { max-width: 100%; }
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-subtle);
+  box-shadow: var(--shadow-card);
   padding: var(--spacing-md) var(--spacing-xl);
   margin-bottom: var(--spacing-lg);
 }
@@ -217,7 +241,7 @@ svg { max-width: 100%; }
   color: var(--color-text);
 }
 .stApp .page-header .page-subtitle {
-  font-size: 15px;
+  font-size: var(--text-base);
   font-weight: 400;
   color: var(--color-text-soft);
   margin: var(--spacing-xs) 0 0;
@@ -227,7 +251,7 @@ svg { max-width: 100%; }
 /* ---------- 05. FILTER TOOLBAR & WIDGETS ---------- */
 
 [data-testid="stWidgetLabel"] p {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--color-text);
   margin-bottom: var(--spacing-xs);
@@ -301,13 +325,56 @@ svg { max-width: 100%; }
 }
 [data-testid="stButton"] button:active { background: var(--color-primary-tint); }
 [data-testid="stButton"] button:disabled { opacity: 0.55; cursor: not-allowed; }
+[data-testid="stButton"] button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Primary = hành động chính: nền đặc primary để nổi bật nhất vùng UI. */
+[data-testid="stBaseButton-primary"],
+[data-testid="stButton"] button[kind="primary"] {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-surface);
+  box-shadow: var(--shadow-subtle);
+}
+[data-testid="stBaseButton-primary"]:hover,
+[data-testid="stButton"] button[kind="primary"]:hover {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-surface);
+  filter: brightness(0.9);
+  box-shadow: var(--shadow-menu);
+}
+[data-testid="stBaseButton-primary"]:active,
+[data-testid="stButton"] button[kind="primary"]:active {
+  background: var(--color-primary);
+  filter: brightness(0.82);
+  box-shadow: none;
+}
+[data-testid="stBaseButton-primary"] p,
+[data-testid="stButton"] button[kind="primary"] p { color: var(--color-surface) !important; }
+
+/* Confirm destructive (xóa / ghi đè / khôi phục — mọi dùng ui.dialogs
+   .confirm_dialog đều không thể hoàn tác): tách hẳn khỏi primary thường. */
+.st-key-dlg_confirm [data-testid="stBaseButton-primary"],
+.st-key-dlg_confirm [data-testid="stButton"] button[kind="primary"] {
+  background: var(--st-danger-base);
+  border-color: var(--st-danger-base);
+}
+.st-key-dlg_confirm [data-testid="stBaseButton-primary"]:hover,
+.st-key-dlg_confirm [data-testid="stButton"] button[kind="primary"]:hover {
+  background: var(--st-danger-base);
+  border-color: var(--st-danger-base);
+  filter: brightness(0.9);
+}
 
 /* ---------- 06. KPI CARDS ---------- */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
   gap: var(--spacing-lg);
-  margin: 0 0 var(--spacing-lg);
+  margin: 0 0 var(--spacing-md);
 }
 
 .kpi-card {
@@ -346,7 +413,7 @@ svg { max-width: 100%; }
   flex: 0 0 34px;
 }
 .kpi-value {
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 700;
   line-height: 1.1;
   color: var(--color-text);
@@ -423,8 +490,8 @@ svg { max-width: 100%; }
   margin-bottom: var(--spacing-xs);
 }
 .stApp .card-title-row .card-title {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   line-height: 1.3;
   margin: 0;
   padding: 0;
@@ -439,7 +506,7 @@ svg { max-width: 100%; }
   padding: 2px 10px;
   white-space: nowrap;
 }
-.card-subtitle { font-size: 12px; font-weight: 400; color: var(--color-text-muted); margin: 0 0 var(--spacing-md); }
+.card-subtitle { font-size: 13px; font-weight: 400; color: var(--color-text-muted); margin: 0 0 var(--spacing-md); }
 
 .chart-footer {
   display: flex;
@@ -469,19 +536,22 @@ svg { max-width: 100%; }
 
 .trend-cell { display: flex; flex-direction: column; gap: 2px; }
 .trend-cell span { font-size: var(--text-xs); font-weight: 600; color: var(--color-text-muted); }
-.trend-cell strong { font-size: var(--text-xl); font-weight: 700; color: var(--color-text); font-variant-numeric: tabular-nums; }
+.trend-cell strong { font-size: var(--text-2xl); font-weight: 700; color: var(--color-text); font-variant-numeric: tabular-nums; }
 .trend-cell:first-child strong { color: var(--color-primary); }
 
 @media (max-width: 640px) {
   .trend-summary { grid-template-columns: 1fr; }
 }
 
-/* ---------- 09. TABLE ---------- */
+/* ---------- 09. TABLE ----------
+   Lưu ý: st.dataframe render bằng canvas nên CSS chỉ tác động được khung
+   ngoài; cỡ chữ ô lưới theo theme Streamlit. Khung + footnote vẫn theo token. */
 [data-testid="stDataFrame"] {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--color-surface);
+  font-size: 15px;
 }
 .table-footnote { font-size: 12px; font-weight: 400; color: var(--color-text-muted); margin-top: var(--spacing-md); }
 
@@ -493,6 +563,14 @@ svg { max-width: 100%; }
   padding: var(--spacing-md) var(--spacing-lg);
   margin-bottom: var(--spacing-md);
 }
+/* Mức độ cảnh báo: viền trái + marker theo semantic (chữ/mức độ vẫn là
+   tín hiệu chính, màu chỉ hỗ trợ scan nhanh). */
+.alert-item.sev-danger { border-left: 3px solid var(--st-danger-border); }
+.alert-item.sev-danger .alert-marker { background: var(--st-danger-dot); }
+.alert-item.sev-warning { border-left: 3px solid var(--st-warning-border); }
+.alert-item.sev-warning .alert-marker { background: var(--st-warning-dot); }
+.alert-item.sev-info { border-left: 3px solid var(--st-info-border); }
+.alert-item.sev-info .alert-marker { background: var(--st-info-dot); }
 .alert-item:last-child { margin-bottom: 0; }
 .alert-top {
   display: flex;
@@ -501,7 +579,7 @@ svg { max-width: 100%; }
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-sm);
 }
-.alert-type { display: flex; align-items: center; gap: var(--spacing-sm); font-size: 14px; font-weight: 600; color: var(--color-text); }
+.alert-type { display: flex; align-items: center; gap: var(--spacing-sm); font-size: 15px; font-weight: 700; color: var(--color-text); }
 .alert-marker { width: 8px; height: 8px; border-radius: 50%; background: var(--color-accent); flex: 0 0 8px; }
 .alert-meta { font-size: 12px; font-weight: 600; color: var(--color-text-muted); white-space: nowrap; }
 .alert-body {
@@ -509,11 +587,87 @@ svg { max-width: 100%; }
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-sm);
-  font-size: 13px;
+  font-size: 14px;
   color: var(--color-text-soft);
 }
 .alert-id { font-weight: 700; color: var(--color-primary); }
 .alert-sep { color: var(--color-border); }
+/* ---------- 10b. ALERTS COMPACT (trang Cảnh báo) ----------
+   Hàng 2 dòng chống lấp: dòng 1 marker + tiêu đề + mã + badge (không cắt),
+   dòng 2 chi tiết bọc từ đầy đủ. Chỉ dùng token, không animation riêng. */
+.alert-item.alert-compact {
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
+}
+.alert-item.alert-compact:last-child { margin-bottom: 0; }
+.alert-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-xs) var(--spacing-sm);
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+.alert-line .alert-title {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+.alert-line .alert-meta {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.alert-line .alert-desc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-xs) var(--spacing-sm);
+  flex: 1 1 100%;
+  order: 5;
+  min-width: 0;
+  color: var(--color-text-soft);
+}
+.alert-line .status-badge { margin-left: auto; flex: 0 0 auto; }
+/* Nút Chi tiết trong hàng alert: thấp gọn hơn nút form (38px -> 32px) để khớp
+   chiều cao hàng; vẫn đủ 32px+ và focus-visible chuẩn. */
+[class*="st-key-alert_"] [data-testid="stButton"] button {
+  min-height: 32px;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.table-footnote { margin-top: var(--spacing-sm); }
+/* Nút "Đã xử lý": viền/chữ xanh lá, nền trong suốt — nhẹ hơn nút chính. */
+[class*="st-key-handled_"] [data-testid="stButton"] button {
+  min-height: 30px;
+  font-size: 13px;
+  white-space: nowrap;
+  border-color: var(--st-success-border);
+  color: var(--st-success-text);
+}
+[class*="st-key-handled_"] [data-testid="stButton"] button:hover:not(:disabled) {
+  background: var(--st-success-bg);
+  border-color: var(--st-success-border);
+  color: var(--st-success-text);
+}
+/* Ô trống bù hàng để 2 block cạnh nhau cân chiều cao khi thiếu mục. */
+.alert-slot-empty {
+  min-height: 76px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  margin-bottom: var(--spacing-xs);
+}
+/* Thanh phân trang trong card hẹp: được xuống dòng thay vì chồng nút, và luôn
+   nằm đáy card để 2 card cạnh nhau cân đối. */
+[class*="st-key-pagination_"] { margin-top: auto; }
+[class*="st-key-pagination_"] [data-testid="stHorizontalBlock"] {
+  flex-wrap: wrap;
+  row-gap: var(--spacing-xs);
+}
 
 .rank-list { list-style: none; padding: 0; margin: 0; }
 .rank-item {
@@ -529,7 +683,7 @@ svg { max-width: 100%; }
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--color-text);
   min-width: 0;
@@ -672,8 +826,8 @@ svg { max-width: 100%; }
   justify-content: center;
   margin-bottom: var(--spacing-xs);
 }
-.state-title { font-size: 15px; font-weight: 600; color: var(--color-text); }
-.state-hint { font-size: 12px; font-weight: 400; color: var(--color-text-muted); max-width: 460px; }
+.state-title { font-size: 17px; font-weight: 700; color: var(--color-text); }
+.state-hint { font-size: 13px; font-weight: 400; color: var(--color-text-muted); max-width: 460px; }
 
 .error-card {
   display: flex;
@@ -681,7 +835,7 @@ svg { max-width: 100%; }
   align-items: flex-start;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-left: 4px solid var(--color-primary);
+  border-left: 4px solid var(--st-danger-base);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-subtle);
   padding: var(--spacing-xl) var(--spacing-2xl);
@@ -712,7 +866,7 @@ svg { max-width: 100%; }
 [data-testid="stSidebar"] [data-testid="stButton"] button {
   justify-content: flex-start;
   text-align: left;
-  min-height: 40px;
+  min-height: 42px;
   padding: var(--spacing-sm) var(--spacing-md) var(--spacing-sm) 42px;
   background-color: transparent;
   background-repeat: no-repeat;
@@ -768,24 +922,57 @@ svg { max-width: 100%; }
   white-space: nowrap;
 }
 
-/* ---------- 15. STATUS BADGE & STAT CHIPS ---------- */
+/* ---------- 15. STATUS BADGE & STAT CHIPS ----------
+   Màu từ STATUS tokens (text đậm trên nền rất nhạt + viền nhẹ + dot).
+   Markup do ui/badges.py sinh: [ ● Nhãn ] — luôn có chữ nên màu không bao
+   giờ là tín hiệu duy nhất. `.attention` giữ lại làm alias của danger để
+   tương thích markup cũ. */
 .status-badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 10px;
+  gap: 6px;
+  padding: 3px 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
   background: var(--color-surface);
   color: var(--color-text-soft);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
 }
+.status-badge .status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 7px;
+}
+.status-badge.st-success {
+  background: var(--st-success-bg);
+  border-color: var(--st-success-border);
+  color: var(--st-success-text);
+}
+.status-badge.st-info {
+  background: var(--st-info-bg);
+  border-color: var(--st-info-border);
+  color: var(--st-info-text);
+}
+.status-badge.st-warning {
+  background: var(--st-warning-bg);
+  border-color: var(--st-warning-border);
+  color: var(--st-warning-text);
+}
+.status-badge.st-danger,
 .status-badge.attention {
-  background: var(--color-primary-tint);
-  border-color: var(--color-accent-tint-border);
-  color: var(--color-primary);
+  background: var(--st-danger-bg);
+  border-color: var(--st-danger-border);
+  color: var(--st-danger-text);
   font-weight: 700;
+}
+.status-badge.st-neutral {
+  background: var(--st-neutral-bg);
+  border-color: var(--st-neutral-border);
+  color: var(--st-neutral-text);
 }
 
 .stat-chip-row {
@@ -796,18 +983,33 @@ svg { max-width: 100%; }
 }
 .stat-chip {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--spacing-sm);
-  padding: 4px 12px;
+  padding: 5px 13px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
   background: var(--color-surface-alt);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--color-text-muted);
 }
+.stat-chip .status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 7px;
+}
 .stat-chip strong { color: var(--color-text); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.stat-chip.attention { border-color: var(--color-accent-tint-border); background: var(--color-primary-tint); }
-.stat-chip.attention strong { color: var(--color-primary); }
+.stat-chip.st-success { border-color: var(--st-success-border); background: var(--st-success-bg); }
+.stat-chip.st-success strong { color: var(--st-success-text); }
+.stat-chip.st-info { border-color: var(--st-info-border); background: var(--st-info-bg); }
+.stat-chip.st-info strong { color: var(--st-info-text); }
+.stat-chip.st-warning { border-color: var(--st-warning-border); background: var(--st-warning-bg); }
+.stat-chip.st-warning strong { color: var(--st-warning-text); }
+.stat-chip.st-danger,
+.stat-chip.attention { border-color: var(--st-danger-border); background: var(--st-danger-bg); }
+.stat-chip.st-danger strong,
+.stat-chip.attention strong { color: var(--st-danger-text); }
 .stat-chip.total { border-color: var(--color-accent-tint-border); }
 
 /* ---------- 16. NOTICES (success / info / error) ---------- */
@@ -823,14 +1025,15 @@ svg { max-width: 100%; }
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
   color: var(--color-text);
 }
 .notice-title .icon { color: var(--color-primary); }
 .notice-desc { font-size: 12px; color: var(--color-text-muted); margin-top: var(--spacing-xs); }
-.notice.success { background: var(--color-accent-tint); }
-.notice.error { border-left-color: var(--color-primary); background: var(--color-primary-tint); }
+.notice.success { border-left-color: var(--st-success-border); background: var(--st-success-bg); }
+.notice.error { border-left-color: var(--st-danger-base); background: var(--st-danger-bg); }
+.notice.info { border-left-color: var(--st-info-border); background: var(--st-info-bg); }
 .notice-list {
   margin: var(--spacing-sm) 0 0;
   padding-left: var(--spacing-xl);
@@ -849,7 +1052,7 @@ svg { max-width: 100%; }
   padding-bottom: var(--spacing-sm);
   border-bottom: 1px solid var(--color-border);
 }
-.form-section-title { font-size: 14px; font-weight: 700; color: var(--color-text); }
+.form-section-title { font-size: 15px; font-weight: 700; color: var(--color-text); }
 .form-section-desc { font-size: 12px; color: var(--color-text-muted); }
 
 /* ---------- 18. DETAIL TABLE / DIALOG ---------- */
@@ -866,7 +1069,7 @@ svg { max-width: 100%; }
   gap: var(--spacing-lg);
   padding: var(--spacing-sm) var(--spacing-md);
   border-bottom: 1px solid var(--color-border);
-  font-size: 13px;
+  font-size: 14px;
 }
 .detail-row:last-child { border-bottom: none; }
 .detail-row:nth-child(odd) { background: var(--color-surface-alt); }
@@ -881,7 +1084,7 @@ svg { max-width: 100%; }
   padding: var(--spacing-sm) var(--spacing-md);
   margin-top: var(--spacing-md);
 }
-.dialog-text { font-size: 14px; color: var(--color-text-soft); margin: 0 0 var(--spacing-sm); }
+.dialog-text { font-size: 15px; color: var(--color-text-soft); margin: 0 0 var(--spacing-sm); }
 
 /* ---------- 18b. HINT BAR (gợi ý thao tác) ----------
    Nói rõ người dùng cần bấm vào đâu. Viền nét đứt để không cạnh tranh thị giác
@@ -1072,7 +1275,7 @@ svg { max-width: 100%; }
 
 .alert-card-count {
   margin-left: auto;
-  font-size: var(--text-3xl);
+  font-size: 32px;
   font-weight: 700;
   line-height: 1;
   color: var(--color-text);
@@ -1124,6 +1327,39 @@ svg { max-width: 100%; }
 .timeline-desc { font-size: 13px; color: var(--color-text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .timeline-meta { font-size: var(--text-xs); color: var(--color-text-muted); }
+
+/* ---------- 21e. WARNING LIST (khối Cảnh báo nghiệp vụ, trang Báo cáo) ----------
+   Dòng gọn 1 dòng + cuộn nội bộ khi nhiều: trang không bị kéo dài bởi 10
+   card xếp chồng. Màu marker theo mức độ, chữ vẫn là tín hiệu chính. */
+.warning-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  max-height: 296px;
+  overflow-y: auto;
+  padding-right: var(--spacing-xs);
+}
+.warning-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+  font-size: 14px;
+  color: var(--color-text-soft);
+}
+.warning-row .alert-marker { flex: 0 0 8px; }
+.warning-row.sev-danger { border-left: 3px solid var(--st-danger-border); }
+.warning-row.sev-danger .alert-marker { background: var(--st-danger-dot); }
+.warning-row.sev-warning { border-left: 3px solid var(--st-warning-border); }
+.warning-row.sev-warning .alert-marker { background: var(--st-warning-dot); }
+.warning-row span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ---------- 21f. BULK BAR SLIDE-IN ----------
    Thanh thao tác hàng loạt trượt vào khi chọn dòng; lòe nhẹ đủ để mắt bắt
@@ -1180,11 +1416,8 @@ svg { max-width: 100%; }
 .nav-item:focus-visible,
 .icon-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
-/* ---------- 23. RESPONSIVE ---------- */
-@media (max-width: 1200px) {
-  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
+/* ---------- 23. RESPONSIVE ----------
+   KPI grid tự co qua auto-fit nên không cần breakpoint riêng ở 1200px. */
 @media (max-width: 1024px) {
   .block-container,
   [data-testid="stMainBlockContainer"] {
@@ -1193,8 +1426,60 @@ svg { max-width: 100%; }
   }
 }
 
+/* ---------- 25. DENSITY + READABILITY (quản trị không rành công nghệ) ----------
+   Trang gọn để vừa màn hình: giảm nhịp dọc, bảng/danh sách dài cuộn NỘI BỘ
+   trong khung cố định (st.dataframe đã có chiều cao cố định). KHÔNG khóa cứng
+   cuộn trang vì sẽ giấu nút bấm trên màn hình thấp — cuộn trang chỉ còn là
+   dự phòng khi nội dung vượt quá khung hình. */
+[data-testid="stVerticalBlock"] { gap: 10px; }
+.page-header { margin: 0 0 var(--spacing-md); }
+.stApp .page-header .page-title { font-size: 32px; }
+.kpi-grid { margin: 0 0 var(--spacing-md); }
+.kpi-card { padding: var(--spacing-md) var(--spacing-lg); }
+.kpi-label { font-size: 15px; }
+.card-subtitle { font-size: 14px; margin: 0 0 var(--spacing-sm); }
+.card-count { font-size: 13px; }
+.stApp .card-title-row .card-title { font-size: 20px; }
+.app-topbar { padding: var(--spacing-sm) var(--spacing-lg); margin-bottom: var(--spacing-md); }
+.alert-item { padding: var(--spacing-sm) var(--spacing-md); margin-bottom: var(--spacing-sm); }
+.alert-type { font-size: 16px; }
+.alert-body { font-size: 15px; }
+.rank-item { padding: var(--spacing-sm) 0; }
+.rank-name { font-size: 16px; }
+.detail-table { margin: var(--spacing-sm) 0; }
+.detail-row { font-size: 15px; }
+.dialog-text { font-size: 16px; }
+.notice { padding: var(--spacing-sm) var(--spacing-lg); margin: var(--spacing-sm) 0; }
+.notice-title { font-size: 16px; }
+.meta-grid { margin: var(--spacing-sm) 0; }
+.meta-label { font-size: 13px; }
+.meta-value { font-size: 15px; }
+.timeline-item { padding: var(--spacing-sm) 0; }
+.timeline-title { font-size: 15px; }
+.timeline-desc { font-size: 14px; }
+.chart-footer { font-size: 14px; }
+.chart-footer strong { font-size: 18px; }
+.best-table td { font-size: 16px; }
+.best-table th { font-size: 13px; }
+.state-title { font-size: 18px; }
+.state-hint { font-size: 14px; }
+.hint-bar { font-size: 14px; }
+.table-footnote { font-size: 13px; }
+.pagination-info { font-size: 14px; }
+.form-section-title { font-size: 16px; }
+.status-badge { font-size: 14px; }
+.stat-chip { font-size: 14px; }
+[data-testid="stWidgetLabel"] p { font-size: 16px; }
+[data-testid="stButton"] button,
+[data-testid="baseButton-secondary"] { font-size: 15px; }
+[data-baseweb="select"] > div { font-size: 15px; }
+[data-testid="stTextInputRootElement"] input,
+[data-testid="stDateInputRootElement"] input { font-size: 15px; }
+[data-testid="stSidebar"] [data-testid="stButton"] button { font-size: 15px; }
+
 @media (max-width: 768px) {
-  .page-title { font-size: 24px; }
+  .stApp .page-header .page-title { font-size: 26px; }
+  .page-title { font-size: 26px; }
   .app-topbar { flex-wrap: wrap; row-gap: var(--spacing-md); }
   .detail-row { flex-direction: column; align-items: flex-start; gap: 2px; }
   .detail-value { text-align: left; }
@@ -1202,8 +1487,92 @@ svg { max-width: 100%; }
   .meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+/* ---------- 24. DASHBOARD SHOPEERS-STYLE (delta / gauge / best table) ----------
+   Tất cả màu từ STATUS tokens — không thêm màu mới. */
+.kpi-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+.kpi-delta {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--st-info-border);
+  background: var(--st-info-bg);
+  color: var(--st-info-text);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-delta.good {
+  border-color: var(--st-success-border);
+  background: var(--st-success-bg);
+  color: var(--st-success-text);
+}
+.kpi-delta.bad {
+  border-color: var(--st-danger-border);
+  background: var(--st-danger-bg);
+  color: var(--st-danger-text);
+}
+
+/* Gauge: Altair vẽ cung, caption là HTML phía dưới. */
+.gauge-wrap { display: flex; flex-direction: column; align-items: center; }
+.gauge-caption { font-size: 13px; color: var(--color-text-muted); margin-top: var(--spacing-sm); text-align: center; }
+
+/* Best table: header uppercase muted, dòng có số thứ tự + badge trạng thái. */
+.best-table { width: 100%; border-collapse: collapse; }
+.best-table th {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  text-align: left;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+.best-table th.num, .best-table td.num { text-align: right; }
+.best-table td {
+  font-size: 15px;
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+.best-table tr:last-child td { border-bottom: none; }
+.best-table tbody tr { transition: background var(--motion-fast) var(--easing-standard); }
+.best-table tbody tr:hover { background: var(--color-surface-alt); }
+.best-table .best-id { font-weight: 700; color: var(--color-primary); white-space: nowrap; }
+.best-table .best-name { font-weight: 600; color: var(--color-text); }
+.best-table .best-cat { font-size: 13px; color: var(--color-text-muted); }
+.best-table .best-count { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.best-table .best-share { font-size: 13px; color: var(--color-text-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.best-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--color-primary-tint);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  flex: 0 0 26px;
+}
+
+@media (max-width: 768px) {
+  .best-table .best-cat, .best-table .best-share { display: none; }
+}
+
 @media (max-width: 640px) {
   .kpi-grid { grid-template-columns: 1fr; }
+  .kpi-value { font-size: 28px; }
+  .alert-card-count { font-size: 28px; }
   .meta-grid { grid-template-columns: 1fr; }
   .stat-chip-row { gap: var(--spacing-xs); }
   .app-topbar { padding: var(--spacing-md); gap: var(--spacing-sm); }

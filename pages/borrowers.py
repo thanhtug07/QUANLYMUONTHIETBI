@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 import streamlit as st
-from cleaners import BORROWER_COLUMNS, normalize_text
+from cleaners import BORROWER_COLUMNS, normalize_phone, normalize_text
 
 import data_store
 import main
@@ -47,12 +47,13 @@ from ui.tables import (
 )
 
 #: Cột hiển thị của bảng người mượn.
-TABLE_COLUMNS: List[str] = ["Mã người mượn", "Họ tên", "Lớp", "Lượt mượn", "Đang mượn"]
+TABLE_COLUMNS: List[str] = ["Mã sinh viên", "Họ tên", "Lớp", "Điện thoại", "Lượt mượn", "Đang mượn"]
 
 COLUMN_CONFIG: Dict[str, Any] = {
-    "Mã người mượn": st.column_config.TextColumn("Mã người mượn", width="small"),
+    "Mã sinh viên": st.column_config.TextColumn("Mã sinh viên", width="small"),
     "Họ tên": st.column_config.TextColumn("Họ tên", width="medium"),
     "Lớp": st.column_config.TextColumn("Lớp", width="small"),
+    "Điện thoại": st.column_config.TextColumn("Điện thoại", width="small"),
     "Lượt mượn": st.column_config.NumberColumn("Lượt mượn", width="small"),
     "Đang mượn": st.column_config.NumberColumn("Đang mượn", width="small"),
 }
@@ -60,7 +61,7 @@ COLUMN_CONFIG: Dict[str, Any] = {
 FILTER_KEYS: List[str] = ["borrower_search", "borrower_class", "borrower_sort"]
 
 SORT_FIELDS: Dict[str, str] = {
-    "Mã người mượn": "borrower_id",
+    "Mã sinh viên": "borrower_id",
     "Họ tên": "name",
     "Lớp": "class_name",
     "Lượt mượn": "borrow_count",
@@ -93,11 +94,11 @@ def _render_toolbar(borrowers: List[Dict[str, Any]]) -> Dict[str, Any]:
     with st.container(border=True, key="borrower_filter_row"):
         pre_search = str(st.session_state.get("borrower_search", ""))
         pre_class = str(st.session_state.get("borrower_class", "Tất cả"))
-        pre_sort = str(st.session_state.get("borrower_sort", "Mã người mượn"))
+        pre_sort = str(st.session_state.get("borrower_sort", "Mã sinh viên"))
         active = (
             (1 if pre_search.strip() else 0)
             + (1 if pre_class != "Tất cả" else 0)
-            + (1 if pre_sort not in ("", "Mã người mượn") else 0)
+            + (1 if pre_sort not in ("", "Mã sinh viên") else 0)
         )
         card_header(
             "Tìm kiếm & lọc",
@@ -108,7 +109,7 @@ def _render_toolbar(borrowers: List[Dict[str, Any]]) -> Dict[str, Any]:
         with columns[0]:
             search = st.text_input(
                 "Tìm kiếm",
-                placeholder="Tìm mã người mượn, họ tên hoặc lớp…",
+                placeholder="Tìm mã, họ tên, lớp hoặc SĐT…",
                 key="borrower_search",
             )
         with columns[1]:
@@ -152,6 +153,7 @@ def _apply_filters(
             or query in normalize_text(borrower.get("borrower_id", "")).lower()
             or query in normalize_text(borrower.get("name", "")).lower()
             or query in normalize_text(borrower.get("class_name", "")).lower()
+            or query in normalize_phone(borrower.get("phone", "")).lower()
         )
     ]
 
@@ -185,15 +187,21 @@ def _borrower_form(analysis: Dict[str, Any], borrower: Optional[Dict[str, Any]])
     )
 
     with st.form("borrower_form"):
-        form_section("Thông tin người mượn", "Mã người mượn được gợi ý từ danh sách hiện có.")
+        form_section("Thông tin người mượn", "Mã sinh viên được gợi ý từ danh sách hiện có.")
         first_row = st.columns([1, 2], gap="medium")
-        borrower_id = first_row[0].text_input("Mã người mượn", value=default_id)
+        borrower_id = first_row[0].text_input(
+            "Mã sinh viên",
+            value=default_id,
+            # Khoá mã khi sửa (xem chú thích tương tự ở trang Phiếu mượn).
+            disabled=editing,
+        )
         name = first_row[1].text_input(
             "Họ tên", value=str(borrower.get("name", "")) if editing else ""
         )
 
         form_section("Đơn vị", "Lớp / phòng ban dùng để nhóm thống kê.")
-        class_name = st.text_input(
+        second_row = st.columns([1.4, 1], gap="medium")
+        class_name = second_row[0].text_input(
             "Lớp / phòng ban",
             value=str(borrower.get("class_name", "")) if editing else "",
             help=(
@@ -201,6 +209,12 @@ def _borrower_form(analysis: Dict[str, Any], borrower: Optional[Dict[str, Any]])
                 if existing_classes
                 else "Chưa có lớp nào trong dữ liệu."
             ),
+        )
+        phone = second_row[1].text_input(
+            "Điện thoại",
+            value=str(borrower.get("phone", "") or "") if editing else "",
+            placeholder="09xxxxxxxx",
+            help="Không bắt buộc. Nếu nhập phải đủ 10 số, bắt đầu bằng 0.",
         )
 
         cancel_col, submit_col = st.columns(2, gap="medium")
@@ -219,6 +233,7 @@ def _borrower_form(analysis: Dict[str, Any], borrower: Optional[Dict[str, Any]])
         "borrower_id": str(borrower_id).strip().upper(),
         "name": str(name).strip(),
         "class_name": str(class_name).strip(),
+        "phone": normalize_phone(phone),
     }
 
     errors = validators.validate_candidate_borrower(candidate, borrowers, editing=editing)
@@ -242,7 +257,7 @@ def _dialog_view(payload: Dict[str, Any], analysis: Dict[str, Any]) -> None:
     borrower = _find_borrower(analysis.get("borrowers", []), payload.get("borrower_id", ""))
     if borrower is None:
         detail_dialog(
-            "Không tìm thấy người mượn", [("Mã người mượn", str(payload.get("borrower_id", "")))]
+            "Không tìm thấy người mượn", [("Mã sinh viên", str(payload.get("borrower_id", "")))]
         )
         return
     records = analysis.get("records", [])
@@ -261,7 +276,7 @@ def _dialog_edit(payload: Dict[str, Any], analysis: Dict[str, Any]) -> None:
     borrower = _find_borrower(analysis.get("borrowers", []), payload.get("borrower_id", ""))
     if borrower is None:
         detail_dialog(
-            "Không tìm thấy người mượn", [("Mã người mượn", str(payload.get("borrower_id", "")))]
+            "Không tìm thấy người mượn", [("Mã sinh viên", str(payload.get("borrower_id", "")))]
         )
         return
     form_dialog(
@@ -278,7 +293,7 @@ def _dialog_delete(payload: Dict[str, Any], analysis: Dict[str, Any]) -> None:
     borrower = _find_borrower(analysis.get("borrowers", []), payload.get("borrower_id", ""))
     if borrower is None:
         detail_dialog(
-            "Không tìm thấy người mượn", [("Mã người mượn", str(payload.get("borrower_id", "")))]
+            "Không tìm thấy người mượn", [("Mã sinh viên", str(payload.get("borrower_id", "")))]
         )
         return
 
@@ -347,7 +362,7 @@ def _dialog_bulk_delete(payload: Dict[str, Any], analysis: Dict[str, Any]) -> No
         _confirm,
         detail_rows=[
             ("Số người mượn đã chọn", str(len(borrower_ids))),
-            ("Mã người mượn", ", ".join(borrower_ids[:12]) + ("..." if len(borrower_ids) > 12 else "")),
+            ("Mã sinh viên", ", ".join(borrower_ids[:12]) + ("..." if len(borrower_ids) > 12 else "")),
             ("Có phiếu mượn liên quan", str(linked_count)),
             ("Bản ghi còn tồn tại", str(sum(1 for value in borrower_ids if value in existing_ids))),
         ],
@@ -405,7 +420,7 @@ def render(analysis: Dict[str, Any]) -> None:
 
         selected_rows = [page_rows[index] for index in selected_indices if 0 <= index < len(page_rows)]
         if selected_rows:
-            selected_ids = [row["Mã người mượn"] for row in selected_rows]
+            selected_ids = [row["Mã sinh viên"] for row in selected_rows]
             render_bulk_action_bar(
                 len(selected_rows),
                 len(page_rows),
@@ -419,7 +434,7 @@ def render(analysis: Dict[str, Any]) -> None:
 
         if len(selected_rows) == 1:
             selected_row = selected_rows[0]
-            borrower_id = selected_row["Mã người mượn"]
+            borrower_id = selected_row["Mã sinh viên"]
             render_row_action_bar(
                 f'Đang chọn <strong>{borrower_id}</strong> · {selected_row["Họ tên"]} · '
                 f'{selected_row["Lớp"]}',

@@ -155,6 +155,35 @@ def time_filter_records(
     return out
 
 
+def previous_window(
+    mode: str,
+    start: Optional[date] = None,
+    end: Optional[date] = None,
+    today: Optional[date] = None,
+) -> Optional[tuple[date, date]]:
+    """
+    Khoảng kỳ TRƯỚC liền kề cùng độ dài với kỳ của `time_filter_records`.
+
+    Dùng cho pill delta KPI Dashboard (so kỳ hiện tại với kỳ trước). Trả về
+    None khi mode "Tất cả" (không có kỳ so sánh) — caller ẨN pill thay vì bịa.
+    """
+    if mode == "Tất cả":
+        return None
+    today = today or date.today()
+    if mode == "7 ngày":
+        cur_start, cur_end = today - timedelta(days=7), today
+    elif mode == "30 ngày":
+        cur_start, cur_end = today - timedelta(days=30), today
+    elif mode == "3 tháng":
+        cur_start, cur_end = today - timedelta(days=90), today
+    else:
+        cur_start = start or today - timedelta(days=30)
+        cur_end = end or today
+    length = (cur_end - cur_start).days
+    prev_end = cur_start - timedelta(days=1)
+    return prev_end - timedelta(days=length), prev_end
+
+
 def format_date(value: Any) -> str:
     """
     Định dạng ngày để hiển thị (dd/mm/yyyy).

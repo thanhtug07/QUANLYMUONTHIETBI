@@ -156,11 +156,11 @@ def render_sidebar(
         # Khối user cuối sidebar — cùng thành phần với topbar (người quản lý),
         # KHÔNG thêm authentication mới.
         st.markdown(
-            f'<div class="side-user">'
-            f'<span class="user-avatar">QL</span>'
-            f'<span class="side-user-text">'
-            f'<span class="side-user-name">Người quản lý</span>'
-            f'<span class="side-user-sub">Quản trị hệ thống</span>'
-            f"</span></div>",
+            '<div class="side-user">'
+            '<span class="user-avatar">QL</span>'
+            '<span class="side-user-text">'
+            '<span class="side-user-name">Người quản lý</span>'
+            '<span class="side-user-sub">Quản trị hệ thống</span>'
+            "</span></div>",
             unsafe_allow_html=True,
         )

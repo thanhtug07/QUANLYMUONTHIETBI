@@ -1,25 +1,61 @@
 device_id,device_name,category,status
-TB001,Laptop Dell Latitude,Laptop,borrowed
-TB002,Laptop HP ProBook,Laptop,borrowed
-TB003,Laptop Asus Zenbook,Laptop,borrowed
-TB004,Laptop Dell Latitude,Laptop,borrowed
-TB005,May chieu Epson X05,May chieu,borrowed
-TB006,May chieu Panasonic PT,May chieu,borrowed
-TB007,May chieu Epson X05,May chieu,maintenance
-TB008,May chieu Panasonic PT,May chieu,maintenance
-TB009,Tablet iPad 9,Tablet,lost
-TB010,Tablet Samsung Tab A8,Tablet,borrowed
-TB011,Tablet iPad 9,Tablet,borrowed
-TB012,Tablet Samsung Tab A8,Tablet,borrowed
-TB013,Man hinh Dell 24,Man hinh,borrowed
-TB014,Man hinh LG 27,Man hinh,available
-TB015,Man hinh Dell 24,Man hinh,available
-TB016,Man hinh LG 27,Man hinh,available
-TB017,Camera Sony HDR,Camera,available
-TB018,Camera Canon XF,Camera,borrowed
-TB019,Camera Sony HDR,Camera,borrowed
-TB020,Camera Canon XF,Camera,borrowed
-TB021,Chuot Logitech MX,Phu kien,borrowed
-TB022,Ban phim Keychron K3,Phu kien,borrowed
-TB023,Chuot Logitech MX,Phu kien,borrowed
-TB024,Ban phim Keychron K3,Phu kien,lost
+TB001,Laptop Dell Latitude 5440,Laptop,borrowed
+TB002,Laptop HP ProBook 440,Laptop,borrowed
+TB003,Laptop Asus Vivobook 15,Laptop,maintenance
+TB004,Laptop Lenovo ThinkPad E14,Laptop,maintenance
+TB005,Máy chiếu Epson EB-X05,Máy chiếu,borrowed
+TB006,Máy chiếu Panasonic PT-LB305,Máy chiếu,borrowed
+TB007,Máy chiếu Epson EB-X49,Máy chiếu,borrowed
+TB008,Máy chiếu Sony VPL-EX455,Máy chiếu,borrowed
+TB009,Tablet iPad Gen 9,Tablet,borrowed
+TB010,Tablet Samsung Galaxy Tab A8,Tablet,borrowed
+TB011,Tablet iPad Gen 10,Tablet,maintenance
+TB012,Tablet Xiaomi Pad 6,Tablet,borrowed
+TB013,Màn hình Dell P2422H 24,Màn hình,borrowed
+TB014,Màn hình LG 27MP400 27,Màn hình,borrowed
+TB015,Màn hình Samsung LF24 24,Màn hình,lost
+TB016,Màn hình ViewSonic 27,Màn hình,borrowed
+TB017,Camera Sony HDR-CX405,Camera,maintenance
+TB018,Camera Canon XA11,Camera,available
+TB019,Camera Logitech Brio 4K,Camera,borrowed
+TB020,Camera Sony ZV-E10,Camera,borrowed
+TB021,Chuột Logitech M331,Chuột,borrowed
+TB022,Bàn phím Keychron K3,Bàn phím,borrowed
+TB023,Chuột Logitech MX Master 3S,Chuột,borrowed
+TB024,Bàn phím Dareu EK87,Bàn phím,available
+TB025,Loa Bluetooth JBL PartyBox,Loa,borrowed
+TB026,Loa kéo Acnos CS3600,Loa,borrowed
+TB027,Loa trợ giảng Shidu S615,Loa,borrowed
+TB028,Loa Soundbar Samsung HW,Loa,borrowed
+TB029,Micro không dây Shure SVX,Micro,borrowed
+TB030,Micro trợ giảng Takstar,Micro,available
+TB031,Micro có dây Shure SM58,Micro,borrowed
+TB032,Micro thu âm Boya BY-M1,Micro,borrowed
+TB033,Micro cổ ngỗng Toa EM-800,Micro,borrowed
+TB034,Chuột không dây Rapoo M100,Chuột,borrowed
+TB035,Chuột gaming Logitech G304,Chuột,available
+TB036,Bàn phím Logitech K120,Bàn phím,available
+TB037,Bàn phím cơ E-Dra EK3104,Bàn phím,borrowed
+TB038,Ổ điện Lioa 6 lỗ 3m,Ổ điện,borrowed
+TB039,Ổ điện Điện Quang 4 lỗ 5m,Ổ điện,borrowed
+TB040,Ổ điện chịu tải Sopoka,Ổ điện,borrowed
+TB041,Cuộn dây điện 20m phòng học,Ổ điện,available
+TB042,Hộp phấn trắng Thái Bình 10h,Phấn - Bảng,available
+TB043,Hộp phấn màu Hồng Hà,Phấn - Bảng,available
+TB044,Bảng phụ di động 1.2m,Phấn - Bảng,available
+TB045,Khăn lau bảng + nước lau,Phấn - Bảng,borrowed
+TB046,Đèn LED để bàn học,Đèn - Quạt,available
+TB047,Quạt đứng Senko DR1608,Đèn - Quạt,borrowed
+TB048,Quạt treo tường Asia,Đèn - Quạt,borrowed
+TB049,Bút trình chiếu Logitech R400,Cáp - Điều khiển,borrowed
+TB050,Điều khiển máy chiếu Epson,Cáp - Điều khiển,lost
+TB051,Cáp HDMI 10m phòng học,Cáp - Điều khiển,available
+TB052,Cáp HDMI 20m hội trường,Cáp - Điều khiển,borrowed
+TB053,Đầu nối HDMI không dây,Cáp - Điều khiển,borrowed
+TB054,Webcam Logitech C920,Camera,available
+TB055,Chân máy quay tripod,Camera,available
+TB056,Tai nghe Sony WH-CH520,Loa,borrowed
+TB057,Amply karaoke phòng học,Loa,available
+TB058,Micro cá nhân Takstar WPM-200,Micro,available
+TB059,Ổ điện USB Xiaomi 3 cổng,Ổ điện,lost
+TB060,Bảng trắng flipchart,Phấn - Bảng,borrowed

@@ -30,26 +30,29 @@ def read_raw_rows(path: str | Path, columns: Sequence[str]) -> List[Dict[str, st
     Đọc file CSV ở dạng RAW: trả về List[Dict] theo `columns`, giá trị giữ
     nguyên như trong file (không trim, không chuẩn hoá).
 
-    File không tồn tại / rỗng -> danh sách rỗng (không crash).
+    File không tồn tại / rỗng / lỗi đọc (sai encoding...) -> rỗng (không crash).
     """
     file_path = Path(path)
     if not file_path.exists() or file_path.stat().st_size == 0:
         return []
 
     rows: List[Dict[str, str]] = []
-    with file_path.open("r", encoding="utf-8-sig", newline="") as handle:
-        reader = csv.reader(handle)
-        try:
-            header = next(reader)
-        except StopIteration:
-            return []
-        # File lạ header: vẫn đọc theo vị trí cột chuẩn (giống cleaners.load_csv).
-        for raw in reader:
-            if not any(cell.strip() for cell in raw):
-                continue
-            rows.append(
-                {column: (raw[index] if index < len(raw) else "") for index, column in enumerate(columns)}
-            )
+    try:
+        with file_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.reader(handle)
+            try:
+                next(reader)  # bỏ dòng header (đọc theo vị trí cột chuẩn)
+            except StopIteration:
+                return []
+            # File lạ header: vẫn đọc theo vị trí cột chuẩn (giống cleaners.load_csv).
+            for raw in reader:
+                if not any(cell.strip() for cell in raw):
+                    continue
+                rows.append(
+                    {column: (raw[index] if index < len(raw) else "") for index, column in enumerate(columns)}
+                )
+    except (OSError, UnicodeDecodeError):
+        return []
     return rows
 
 
@@ -186,13 +189,16 @@ def count_rows(path: str | Path) -> int:
     file_path = Path(path)
     if not file_path.exists() or file_path.stat().st_size == 0:
         return 0
-    with file_path.open("r", encoding="utf-8-sig", newline="") as handle:
-        reader = csv.reader(handle)
-        try:
-            next(reader)
-        except StopIteration:
-            return 0
-        return sum(1 for raw in reader if any(cell.strip() for cell in raw))
+    try:
+        with file_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.reader(handle)
+            try:
+                next(reader)
+            except StopIteration:
+                return 0
+            return sum(1 for raw in reader if any(cell.strip() for cell in raw))
+    except (OSError, UnicodeDecodeError):
+        return 0
 
 
 def file_columns(path: str | Path) -> List[str]:
@@ -200,12 +206,15 @@ def file_columns(path: str | Path) -> List[str]:
     file_path = Path(path)
     if not file_path.exists() or file_path.stat().st_size == 0:
         return []
-    with file_path.open("r", encoding="utf-8-sig", newline="") as handle:
-        reader = csv.reader(handle)
-        try:
-            return [cell.strip() for cell in next(reader)]
-        except StopIteration:
-            return []
+    try:
+        with file_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.reader(handle)
+            try:
+                return [cell.strip() for cell in next(reader)]
+            except StopIteration:
+                return []
+    except (OSError, UnicodeDecodeError):
+        return []
 
 
 def last_modified(path: str | Path) -> Optional[float]:

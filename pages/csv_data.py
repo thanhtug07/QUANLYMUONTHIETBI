@@ -23,11 +23,12 @@ import main
 from pages.common import CSV_FILES, CSV_LABELS
 from ui.app_shell import clear_data_cache
 from ui.badges import status_badge
-from ui.dialogs import confirm_dialog, open_dialog, render_pending_dialog
+from ui.dialogs import close_dialog, confirm_dialog, open_dialog, render_pending_dialog
 from ui.forms import info_notice, render_flash, set_flash
 from ui.layout import card_header, page_header
 from ui.metrics import MetricCard, render_kpi_grid
 from ui.states import render_empty_state, render_hint
+from utils import sample_data as sample_mod
 from utils.helpers import esc, format_timestamp
 
 #: Khoá page -> tên bảng trong error records của pipeline.
@@ -185,8 +186,8 @@ def _render_file_card(
         )
 
         meta_items = [
-            ("Dòng dữ liệu (thô)", str(raw_count)),
-            ("Dòng hợp lệ sau làm sạch", str(cleaned_counts.get(key, 0))),
+            ("Dòng dữ liệu", str(raw_count)),
+            ("Dòng dùng được", str(cleaned_counts.get(key, 0))),
             ("Cập nhật gần nhất", format_timestamp(data_store.last_modified(path))),
             ("Cột", str(len(columns))),
         ]
@@ -200,7 +201,7 @@ def _render_file_card(
         _render_errors(key, errors)
 
         if raw_rows:
-            with st.expander("Xem trước dữ liệu thô"):
+            with st.expander("Xem trước dữ liệu"):
                 st.dataframe(
                     raw_rows[:PREVIEW_ROWS],
                     width="stretch",
@@ -231,7 +232,7 @@ def render(analysis: Dict[str, Any]) -> None:
     page_header(
         "Dữ liệu CSV",
         "Quản lý dữ liệu đầu vào của hệ thống.",
-        meta=f"{len(CSV_FILES)} file dữ liệu · làm sạch và kiểm tra tự động khi nạp.",
+        meta=f"{len(CSV_FILES)} file dữ liệu · tự kiểm tra khi nạp.",
     )
 
     render_flash()
@@ -240,7 +241,7 @@ def render(analysis: Dict[str, Any]) -> None:
         [
             MetricCard("File dữ liệu", len(CSV_FILES), "devices · borrowers · borrow_records", "database"),
             MetricCard("Dòng dữ liệu", total_rows, "Đang có trên đĩa", "receipt"),
-            MetricCard("Dòng hợp lệ", valid_rows, "Sau làm sạch", "box"),
+            MetricCard("Dòng dùng được", valid_rows, "Đủ thông tin để dùng", "box"),
             MetricCard(
                 "Bản ghi cần kiểm tra",
                 len(errors),
@@ -256,10 +257,188 @@ def render(analysis: Dict[str, Any]) -> None:
         "database",
     )
 
-    for key, _, _ in CSV_FILES:
-        _render_file_card(key, analysis, errors)
+    _render_sample_card(analysis)
 
-    render_pending_dialog({"csv_replace": lambda payload: _dialog_csv_replace(payload, analysis)})
+    file_names = {key: name for key, name, _ in CSV_FILES}
+    selected = st.segmented_control(
+        "File dữ liệu",
+        options=[key for key, _, _ in CSV_FILES],
+        format_func=lambda key: file_names.get(key, key),
+        default=[key for key, _, _ in CSV_FILES][0],
+        key="csv_file_selector",
+        help="Chọn một file để xem chi tiết, xem trước và thay thế.",
+    )
+    if selected not in file_names:
+        selected = [key for key, _, _ in CSV_FILES][0]
+    _render_file_card(selected, analysis, errors)
+
+    render_pending_dialog(
+        {
+            "csv_replace": lambda payload: _dialog_csv_replace(payload, analysis),
+            "sample_add": lambda payload: _dialog_sample_add(analysis),
+            "sample_restore": lambda payload: _dialog_sample_restore(analysis),
+        }
+    )
+
+
+def _render_sample_card(analysis: Dict[str, Any]) -> None:
+    """Card quản lý dữ liệu mẫu: thêm nhanh + khôi phục từ sao lưu."""
+    devices = analysis.get("devices", [])
+    borrowers = analysis.get("borrowers", [])
+    has_backup = sample_mod.has_backup(main.DATA_DIR)
+    with st.container(border=True):
+        card_header(
+            "Dữ liệu mẫu",
+            "Thêm nhanh dữ liệu mẫu để kiểm thử dashboard, biểu đồ và CRUD. "
+            "Dữ liệu được ghi nối trực tiếp vào 3 file CSV.",
+            chip=f"{len(devices)} TB · {len(borrowers)} SV",
+        )
+        add_col, restore_col = st.columns([1.4, 1], gap="medium")
+        with add_col:
+            st.button(
+                "+ Thêm dữ liệu mẫu",
+                key="sample_add_open",
+                type="primary",
+                width="stretch",
+                help="Chọn số lượng và loại dữ liệu trong bước xác nhận.",
+                on_click=open_dialog,
+                kwargs={"kind": "sample_add"},
+            )
+        with restore_col:
+            st.button(
+                "Khôi phục dữ liệu mẫu",
+                key="sample_restore_open",
+                width="stretch",
+                disabled=not has_backup,
+                help=(
+                    "Hoàn tác lần thêm mẫu gần nhất từ bản sao lưu."
+                    if has_backup
+                    else "Chưa có bản sao lưu (được tạo tự động khi thêm mẫu)."
+                ),
+                on_click=open_dialog,
+                kwargs={"kind": "sample_restore"},
+            )
+        if not has_backup:
+            render_hint(
+                "Bản sao lưu được tạo tự động trước mỗi lần thêm mẫu — "
+                "dùng nút Khôi phục để hoàn tác nếu cần.",
+                "database",
+            )
+
+
+def _sample_counts(quantity: int, want_devices: bool,
+                   want_borrowers: bool, want_records: bool) -> Dict[str, int]:
+    """Số dòng sẽ thêm theo lựa chọn (phiếu gấp đôi để đủ variation)."""
+    return {
+        "devices": quantity if want_devices else 0,
+        "borrowers": quantity if want_borrowers else 0,
+        "records": quantity * 2 if want_records else 0,
+    }
+
+
+def _dialog_sample_add(analysis: Dict[str, Any]) -> None:
+    """Dialog chọn số lượng/loại dữ liệu mẫu, xem tổng rồi xác nhận ghi."""
+    @st.dialog("Thêm dữ liệu mẫu")
+    def _wrap() -> None:
+        st.markdown(
+            '<p class="dialog-text">Dữ liệu mới được ghi NỐI vào file hiện tại '
+            "(mã nối tiếp, không trùng, không mất dòng cũ) và kiểm tra bằng "
+            "đúng quy tắc validators trước khi ghi.</p>",
+            unsafe_allow_html=True,
+        )
+        quantity = st.radio(
+            "Số lượng mỗi loại",
+            options=list(sample_mod.SAMPLE_QUANTITIES),
+            index=1,
+            horizontal=True,
+            key="sample_quantity",
+            help="Phiếu mượn được sinh gấp đôi số này để đủ tình huống demo.",
+        )
+        type_cols = st.columns(3, gap="small")
+        with type_cols[0]:
+            want_devices = st.checkbox("Thiết bị", value=True, key="sample_want_devices")
+        with type_cols[1]:
+            want_borrowers = st.checkbox("Người mượn", value=True, key="sample_want_borrowers")
+        with type_cols[2]:
+            want_records = st.checkbox("Phiếu mượn", value=True, key="sample_want_records")
+
+        counts = _sample_counts(quantity, want_devices, want_borrowers, want_records)
+        total = sum(counts.values())
+        st.markdown(
+            '<div class="detail-table">'
+            f'<div class="detail-row"><span class="detail-label">Thiết bị</span>'
+            f'<span class="detail-value">+{counts["devices"]}</span></div>'
+            f'<div class="detail-row"><span class="detail-label">Người mượn</span>'
+            f'<span class="detail-value">+{counts["borrowers"]}</span></div>'
+            f'<div class="detail-row"><span class="detail-label">Phiếu mượn</span>'
+            f'<span class="detail-value">+{counts["records"]}</span></div>'
+            f'<div class="detail-row"><span class="detail-label"><strong>Tổng</strong></span>'
+            f'<span class="detail-value"><strong>+{total}</strong></span></div>'
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        cancel_col, confirm_col = st.columns(2, gap="medium")
+        if cancel_col.button("Huỷ", key="sample_add_cancel", width="stretch"):
+            close_dialog()
+            return
+        if not confirm_col.button(
+            "Xác nhận thêm", key="sample_add_confirm", type="primary", width="stretch"
+        ):
+            return
+        if total == 0:
+            info_notice("Chưa chọn loại dữ liệu nào.", "Tick ít nhất một loại để thêm.")
+            return
+        with st.spinner("Đang sinh và ghi dữ liệu mẫu..."):
+            try:
+                added = sample_mod.append_sample_data(
+                    counts["devices"], counts["borrowers"], counts["records"],
+                    main.DEVICES_CSV, main.BORROWERS_CSV, main.RECORDS_CSV,
+                )
+            except ValueError as exc:
+                info_notice("Không thể thêm dữ liệu mẫu.", str(exc))
+                return
+        clear_data_cache()
+        set_flash(
+            f"Đã thêm {added['devices']} thiết bị, {added['borrowers']} người mượn "
+            f"và {added['records']} phiếu mượn."
+        )
+        close_dialog()
+
+    _wrap()
+
+
+def _dialog_sample_restore(analysis: Dict[str, Any]) -> None:
+    """Xác nhận khôi phục 3 CSV từ bản sao lưu gần nhất (có cảnh báo rõ)."""
+    backups = sample_mod.backup_paths(main.DATA_DIR)
+    modified = max(
+        (data_store.last_modified(path) for path in backups.values()),
+        default=None,
+    )
+
+    def _confirm() -> None:
+        try:
+            sample_mod.restore_sample_backup(
+                main.DEVICES_CSV, main.BORROWERS_CSV, main.RECORDS_CSV
+            )
+        except ValueError as exc:
+            set_flash(f"Không thể khôi phục: {exc}")
+            return
+        clear_data_cache()
+        set_flash("Đã khôi phục dữ liệu từ bản sao lưu gần nhất.")
+
+    confirm_dialog(
+        "Khôi phục dữ liệu mẫu?",
+        "Thao tác này sẽ THAY THẾ toàn bộ dữ liệu hiện tại bằng bản sao lưu "
+        "được tạo trước lần thêm mẫu gần nhất. Mọi thay đổi sau thời điểm đó "
+        "(kể cả thao tác CRUD) sẽ mất. Không thể hoàn tác.",
+        "Khôi phục",
+        _confirm,
+        detail_rows=[
+            ("Bản sao lưu lúc", format_timestamp(modified)),
+            ("File sao lưu", ", ".join(path.name for path in backups.values())),
+        ],
+    )
 
 
 def _dialog_csv_replace(payload: Dict[str, Any], analysis: Dict[str, Any]) -> None:

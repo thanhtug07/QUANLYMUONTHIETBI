@@ -16,7 +16,7 @@ DATE_FORMATS: Tuple[str, ...] = (
 
 #: Cột chuẩn của từng file CSV (đúng theo data model của đề bài).
 DEVICE_COLUMNS: List[str] = ["device_id", "device_name", "category", "status"]
-BORROWER_COLUMNS: List[str] = ["borrower_id", "name", "class_name"]
+BORROWER_COLUMNS: List[str] = ["borrower_id", "name", "class_name", "phone"]
 RECORD_COLUMNS: List[str] = [
     "borrow_id",
     "borrower_id",
@@ -143,6 +143,29 @@ def to_iso(value: Any) -> str:
     return parsed.isoformat() if parsed else ""
 
 
+def normalize_phone(value: Any) -> str:
+    """
+    Chuẩn hoá số điện thoại VN: bỏ khoảng trắng/dấu chấm/gạch, đổi +84 -> 0.
+
+    Ví dụ: "+84 912 345 678" -> "0912345678". Rỗng thì giữ rỗng (phone là
+    trường tuỳ chọn). Đúng/sai định dạng do validators kết luận.
+    """
+    if value is None:
+        return ""
+    text = "".join(str(value).split()).replace(".", "").replace("-", "")
+    if text.startswith("+84"):
+        text = "0" + text[3:]
+    elif text.startswith("84") and len(text) == 11 and text[2:].isdigit():
+        text = "0" + text[2:]
+    return text
+
+
+def is_valid_phone(value: Any) -> bool:
+    """SĐT VN hợp lệ: rỗng (tuỳ chọn) hoặc 0 + 9 chữ số."""
+    text = normalize_phone(value)
+    return not text or (len(text) == 10 and text.startswith("0") and text.isdigit())
+
+
 # ----------------------------------------------------------------------
 # ĐỌC CSV
 # ----------------------------------------------------------------------
@@ -153,6 +176,8 @@ def load_csv(path: str | Path, columns: List[str]) -> List[Dict[str, str]]:
 
     Xử lý được:
       - file không tồn tại / file rỗng  -> trả về [] (không crash);
+      - file sai encoding / lỗi đọc      -> trả về [] (pipeline báo
+        "Không có dữ liệu" thay vì crash);
       - header sai thứ tự / thiếu cột   -> vẫn đọc theo vị trí cột chuẩn;
       - dòng trống                      -> bỏ qua;
       - ô thiếu                          -> điền chuỗi rỗng "".
@@ -164,23 +189,26 @@ def load_csv(path: str | Path, columns: List[str]) -> List[Dict[str, str]]:
     if not file_path.exists() or file_path.stat().st_size == 0:
         return []
 
-    with file_path.open("r", encoding="utf-8-sig", newline="") as handle:
-        reader = csv.reader(handle)
-        try:
-            next(reader)  # bỏ dòng header
-        except StopIteration:
-            return []
+    try:
+        with file_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.reader(handle)
+            try:
+                next(reader)  # bỏ dòng header
+            except StopIteration:
+                return []
 
-        rows: List[Dict[str, str]] = []
-        for row_no, raw in enumerate(reader, start=2):   # dòng 1 là header
-            if not any(cell.strip() for cell in raw):    # bỏ dòng trống
-                continue
-            row = {
-                col: (raw[idx] if idx < len(raw) else "")
-                for idx, col in enumerate(columns)
-            }
-            row["_row_no"] = row_no   # số dòng THỰC trong file -> báo lỗi đúng dòng
-            rows.append(row)
+            rows: List[Dict[str, str]] = []
+            for row_no, raw in enumerate(reader, start=2):   # dòng 1 là header
+                if not any(cell.strip() for cell in raw):    # bỏ dòng trống
+                    continue
+                row = {
+                    col: (raw[idx] if idx < len(raw) else "")
+                    for idx, col in enumerate(columns)
+                }
+                row["_row_no"] = row_no   # số dòng THỰC trong file -> báo lỗi đúng dòng
+                rows.append(row)
+    except (OSError, UnicodeDecodeError):
+        return []
     return rows
 
 
@@ -189,16 +217,20 @@ def missing_columns(path: str | Path, columns: List[str]) -> List[str]:
     Kiểm tra CẤU TRÚC file: trả về danh sách cột còn thiếu trong header.
 
     Dùng Set để so sánh 2 tập cột (O(n)) thay vì duyệt lồng nhau.
+    File lỗi đọc (sai encoding...) -> [] để caller xử lý như file rỗng.
     """
     file_path = Path(path)
     if not file_path.exists() or file_path.stat().st_size == 0:
         return []
-    with file_path.open("r", encoding="utf-8-sig", newline="") as handle:
-        reader = csv.reader(handle)
-        try:
-            header = {normalize_text(cell).lower() for cell in next(reader)}
-        except StopIteration:
-            return []
+    try:
+        with file_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.reader(handle)
+            try:
+                header = {normalize_text(cell).lower() for cell in next(reader)}
+            except StopIteration:
+                return []
+    except (OSError, UnicodeDecodeError):
+        return []
     expected = {column.lower() for column in columns}
     return sorted(expected - header)   # hiệu tập hợp -> cột bị thiếu
 
@@ -310,9 +342,9 @@ def clean_devices(raw_rows: List[Dict[str, Any]]) -> Tuple[List[Dict[str, str]],
 
 def clean_borrowers(raw_rows: List[Dict[str, Any]]) -> Tuple[List[Dict[str, str]], List[Dict[str, Any]]]:
     """
-    Làm sạch bảng NGƯỜI MƯỢN: mã (IN HOA), tên, lớp.
+    Làm sạch bảng NGƯỜI MƯỢN: mã (IN HOA), tên, lớp, SĐT (chuẩn hoá +84 -> 0).
 
-    Trả về (rows, errors) — lỗi thiếu trường bắt buộc được ghi lại
+    Trả về (rows, errors) — lỗi thiếu trường bắt buộc / SĐT sai được ghi lại
     nhưng bản ghi vẫn được giữ ở dạng tối thiểu để validators có thể
     báo cáo tham chiếu (không âm thầm bỏ dữ liệu của người dùng).
     """
@@ -338,10 +370,17 @@ def clean_borrowers(raw_rows: List[Dict[str, Any]]) -> Tuple[List[Dict[str, str]
             errors.append(make_error(row_no, "class_name", data.get("class_name"),
                                      "Thiếu lớp (bắt buộc)", "borrowers"))
 
+        phone = normalize_phone(data.get("phone"))
+        if phone and not is_valid_phone(phone):
+            errors.append(make_error(row_no, "phone", data.get("phone"),
+                                     "Số điện thoại không hợp lệ (cần 10 số, bắt đầu bằng 0)",
+                                     "borrowers"))
+
         rows.append({
             "borrower_id": borrower_id,
             "name": name,
             "class_name": class_name,
+            "phone": phone,
             "_row_no": row_no,   # giữ lại để validators/UI báo đúng dòng lỗi
         })
 
