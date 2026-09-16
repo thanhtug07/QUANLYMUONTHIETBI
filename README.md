@@ -238,12 +238,33 @@ python main.py
 
 Kết quả: báo cáo được ghi vào `output\report.txt`.
 
+### 4. Deploy lên Streamlit Community Cloud (miễn phí)
+
+1. Vào [share.streamlit.io](https://share.streamlit.io) → đăng nhập bằng GitHub.
+2. **Create app** → chọn repo này, branch `main`, main file **`app.py`**.
+3. App chạy với `requirements.txt` và theme đã có sẵn trong repo.
+
+**Lưu ý dữ liệu khi chạy trên cloud:** Streamlit Community Cloud chạy app trong
+container không có ổ đĩa bền vững — mọi thao tác CRUD ghi vào `data/*.csv`
+chỉ tồn tại tạm thời và **mất đi khi app ngủ/restart/redeploy** (app sẽ trở lại
+đúng dữ liệu trong repo). Cách khắc phục theo mức tăng dần:
+| Cách | Chịu được | Độ phức tạp |
+|---|---|---|
+| Chạy local (`streamlit run app.py`) | mọi thứ, persist vĩnh viễn | 0 |
+| Export CSV từ mỗi trang CRUD sau khi nhập liệu | mất khi app restart | 0 |
+| Đồng bộ `data/` về repo qua GitHub (push từ chỗ khác) | chừng nào chưa redeploy | thấp |
+| Gắn volume bền: Google Drive API / Dropbox / S3 | restart + redeploy | trung |
+| Đổi sang SQLite + Streamlit `st.connection` | mọi thao tác CRUD online | cao hơn |
+
+Demo/bảo vệ thì chạy **local** là chuẩn nhất; bản cloud dùng để xem giao diện.
+
 ---
 
 ## 🧪 Dữ liệu mẫu (sample data)
 
 Các file CSV trong `data/` (header tiếng Anh, ngày dạng `dd/mm/yyyy`) hiện có:
-**24 thiết bị, 12 người mượn, 64 dòng phiếu mượn** — bao gồm đủ tình huống:
+**24 thiết bị, 12 người mượn, 63 dòng phiếu mượn** (62 phiếu hợp lệ sau khi làm
+sạch) — bao gồm đủ tình huống:
 trả đúng hạn, trả muộn, đang mượn, quá hạn, thiết bị thất thoát, cùng một số dòng
 lỗi chủ đích để kiểm thử `cleaners` / `validators`.
 
