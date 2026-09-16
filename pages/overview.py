@@ -331,27 +331,30 @@ def render(analysis: Dict[str, Any]) -> None:
             )
 
     # ------------------------------------------------------------------
-    # Secondary analytics: loại thiết bị (8) + ngày trong tuần (4)
+    # Secondary analytics: loại thiết bị (8) + ngày trong tuần (4).
+    # Bọc key ov_equal_charts để CSS §10c kéo 2 card cao bằng nhau (plot +
+    # trục + footer đã cân ở ui/charts nên card co theo nội dung bằng nhau).
     # ------------------------------------------------------------------
-    analytics_left, analytics_right = analytics_grid()
+    with st.container(key="ov_equal_charts"):
+        analytics_left, analytics_right = analytics_grid()
 
-    with analytics_left:
-        with st.container(border=True):
-            card_header(
-                "Lượt mượn theo loại thiết bị",
-                "So sánh nhu cầu mượn giữa các nhóm thiết bị.",
-            )
-            render_category_chart(
-                stats.get("borrows_by_category", []), stats.get("total_borrows", 0)
-            )
+        with analytics_left:
+            with st.container(border=True):
+                card_header(
+                    "Lượt mượn theo loại thiết bị",
+                    "So sánh nhu cầu mượn giữa các nhóm thiết bị.",
+                )
+                render_category_chart(
+                    stats.get("borrows_by_category", []), stats.get("total_borrows", 0)
+                )
 
-    with analytics_right:
-        with st.container(border=True):
-            card_header(
-                "Ngày mượn nhiều nhất",
-                "Số lượt mượn theo ngày trong tuần.",
-            )
-            render_weekday_bars(stats.get("borrows_by_weekday", []))
+        with analytics_right:
+            with st.container(border=True):
+                card_header(
+                    "Ngày mượn nhiều nhất",
+                    "Số lượt mượn theo ngày trong tuần.",
+                )
+                render_weekday_bars(stats.get("borrows_by_weekday", []))
 
     # ------------------------------------------------------------------
     # Best table (8) + gauge/độ phủ (4): xếp hạng cạnh chỉ số tỷ lệ

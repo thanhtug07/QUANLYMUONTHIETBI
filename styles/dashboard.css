@@ -512,13 +512,24 @@ svg { max-width: 100%; }
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  gap: var(--spacing-md);
   border-top: 1px solid var(--color-border);
   margin-top: var(--spacing-md);
   padding-top: var(--spacing-md);
   font-size: 13px;
   color: var(--color-text-soft);
 }
-.chart-footer strong { color: var(--color-primary); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Footer 2 chart cạnh nhau LUÔN 1 dòng (không dòng nào rớt xuống 2 dòng làm
+   lệch card): chữ dài co ellipsis, số liệu không bao giờ cắt/rớt dòng. */
+.chart-footer span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chart-footer strong {
+  color: var(--color-primary);
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
 
 /* ---------- 08. CHARTS ---------- */
 [data-testid="stVegaLiteChart"] { background: transparent !important; border-radius: var(--radius-md); }
@@ -633,18 +644,22 @@ svg { max-width: 100%; }
 }
 .alert-line .status-badge { margin-left: auto; flex: 0 0 auto; }
 /* Nút Chi tiết trong hàng alert: thấp gọn hơn nút form (38px -> 32px) để khớp
-   chiều cao hàng; vẫn đủ 32px+ và focus-visible chuẩn. */
+   chiều cao hàng; vẫn đủ 32px+ và focus-visible chuẩn. Cho phép xuống 2 dòng
+   thay vì ellipsis "Chi t..." khi card hẹp (desktop đủ rộng nên vẫn 1 dòng). */
 [class*="st-key-alert_"] [data-testid="stButton"] button {
   min-height: 32px;
   font-size: var(--text-sm);
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.35;
 }
 .table-footnote { margin-top: var(--spacing-sm); }
-/* Nút "Đã xử lý": viền/chữ xanh lá, nền trong suốt — nhẹ hơn nút chính. */
+/* Nút "Đã xử lý": viền/chữ xanh lá, nền trong suốt — nhẹ hơn nút chính.
+   Xuống dòng thay vì ellipsis khi card hẹp (desktop vẫn 1 dòng). */
 [class*="st-key-handled_"] [data-testid="stButton"] button {
   min-height: 30px;
   font-size: 13px;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.35;
   border-color: var(--st-success-border);
   color: var(--st-success-text);
 }
@@ -667,6 +682,30 @@ svg { max-width: 100%; }
 [class*="st-key-pagination_"] [data-testid="stHorizontalBlock"] {
   flex-wrap: wrap;
   row-gap: var(--spacing-xs);
+}
+
+/* ---------- 10c. EQUAL-HEIGHT ROWS (2 chart Tổng quan + 2 card Cảnh báo) -----
+   Streamlit columns co theo nội dung nên card ngắn hơn để lại khoảng trống.
+   Hai hàng này được bọc st.container(key) ở pages/overview.py (ov_equal_charts)
+   và pages/alerts.py (alerts_equal_row); CSS kéo giãn toàn chuỗi flex
+   hàng -> cột -> khối cột -> vỏ card -> ruột card. Nhờ card giãn đầy cột,
+   `margin-top: auto` của pagination mới có khoảng trống để bám đáy thật.
+   Phạm vi chặt bằng key nên không ảnh hưởng toolbar/grid khác. */
+.st-key-ov_equal_charts > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"],
+.st-key-alerts_equal_row > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"] {
+  align-items: stretch !important;
+}
+.st-key-ov_equal_charts [data-testid="stColumn"] > [data-testid="stVerticalBlock"],
+.st-key-alerts_equal_row [data-testid="stColumn"] > [data-testid="stVerticalBlock"] {
+  height: 100%;
+}
+.st-key-ov_equal_charts [data-testid="stLayoutWrapper"],
+.st-key-alerts_equal_row [data-testid="stLayoutWrapper"] {
+  height: 100%;
+}
+.st-key-ov_equal_charts [data-testid="stLayoutWrapper"] > [data-testid="stVerticalBlock"],
+.st-key-alerts_equal_row [data-testid="stLayoutWrapper"] > [data-testid="stVerticalBlock"] {
+  height: 100%;
 }
 
 .rank-list { list-style: none; padding: 0; margin: 0; }

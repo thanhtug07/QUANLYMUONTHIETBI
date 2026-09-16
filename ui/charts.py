@@ -24,6 +24,14 @@ from utils.helpers import esc, month_label
 #: Chiều cao biểu đồ (gọn để vừa viewport, vẫn đủ đọc số liệu).
 CHART_HEIGHT = 240
 
+#: Bù chênh trục X giữa 2 chart cạnh nhau (trang Tổng quan, dữ liệu thật:
+#: 13 loại TB / 7 ngày tuần). Category xoay nhãn -30° nên trục X chiếm thêm
+#: ~40px so với weekday (nhãn ngắn 1 dòng) — plot weekday cao hơn đúng phần
+#: đó để TỔNG khối (plot + trục + footer) 2 card bằng nhau. Font giữ 12px,
+#: không cắt dữ liệu, không đụng statistics.
+WEEKDAY_EXTRA_AXIS = 40
+WEEKDAY_CHART_HEIGHT = CHART_HEIGHT + WEEKDAY_EXTRA_AXIS
+
 #: Font cho Vega-Lite (lấy từ design tokens).
 CHART_FONT = tokens.FONT_NAME
 
@@ -104,7 +112,10 @@ def render_category_chart(rows: Sequence[Tuple[str, int]], footer_total: int) ->
                 "Loại thiết bị:N",
                 title=None,
                 sort=None,
-                axis=_axis_labels(labelLimit=170, labelAngle=0, grid=False),
+                # 13 nhãn dài ("Cáp - Điều khiển", "Phấn - Bảng", ...): xoay
+                # -30° + giới hạn 90 ký tự hiển thị để không chồng lấn mà vẫn
+                # đọc được; font giữ 12px (không thu chữ để nhét).
+                axis=_axis_labels(labelLimit=90, labelAngle=-30, grid=False),
             ),
             y=alt.Y("Số lượt:Q", title=None, axis=_value_axis()),
             tooltip=[
@@ -299,7 +310,9 @@ def render_weekday_bars(rows: Sequence[Tuple[str, int]]) -> None:
     )
     chart = (
         (bars + labels)
-        .properties(height=232, background="transparent")
+        # Cùng tổng chiều cao khối với category chart: plot cao hơn đúng
+        # WEEKDAY_EXTRA_AXIS để bù trục X xoay nhãn bên kia (xem hằng số).
+        .properties(height=WEEKDAY_CHART_HEIGHT, background="transparent")
         .configure_view(stroke=None, fill="transparent")
         .configure(font=CHART_FONT)
     )

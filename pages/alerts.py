@@ -402,37 +402,41 @@ def render(analysis: Dict[str, Any]) -> None:
             "(bấm Đặt lại để hiện lại)."
         )
 
-    left, right = two_column_grid()
+    # Hai card cạnh nhau bọc key alerts_equal_row để CSS §10c kéo cao bằng
+    # nhau (mỗi nhóm luôn đủ 5 khối hàng/slot + pagination bám đáy). Logic
+    # lọc/phân trang/dismiss giữ nguyên.
+    with st.container(key="alerts_equal_row"):
+        left, right = two_column_grid()
 
-    with left:
-        with st.container(border=True):
-            card_header(
-                "Quá hạn",
-                "Phiếu chưa trả và đã vượt hạn trả.",
-                chip=f"{len(overdue_items)}/{len(overdue_records)}",
-            )
-            _render_group(
-                overdue_items,
-                "Không có phiếu quá hạn.",
-                "Mọi phiếu đang mượn đều còn trong hạn trả.",
-                OVERDUE_PAGE_KEY,
-                "phiếu quá hạn",
-            )
+        with left:
+            with st.container(border=True):
+                card_header(
+                    "Quá hạn",
+                    "Phiếu chưa trả và đã vượt hạn trả.",
+                    chip=f"{len(overdue_items)}/{len(overdue_records)}",
+                )
+                _render_group(
+                    overdue_items,
+                    "Không có phiếu quá hạn.",
+                    "Mọi phiếu đang mượn đều còn trong hạn trả.",
+                    OVERDUE_PAGE_KEY,
+                    "phiếu quá hạn",
+                )
 
-    with right:
-        with st.container(border=True):
-            card_header(
-                "Thất thoát",
-                "Thiết bị đang mượn nhưng không còn trong danh mục quản lý.",
-                chip=f"{len(lost_items)}/{len(lost_ids)}",
-            )
-            _render_group(
-                lost_items,
-                "Không có thiết bị thất thoát.",
-                "Mọi thiết bị đang mượn đều tồn tại trong danh mục.",
-                LOST_PAGE_KEY,
-                "thiết bị thất thoát",
-            )
+        with right:
+            with st.container(border=True):
+                card_header(
+                    "Thất thoát",
+                    "Thiết bị đang mượn nhưng không còn trong danh mục quản lý.",
+                    chip=f"{len(lost_items)}/{len(lost_ids)}",
+                )
+                _render_group(
+                    lost_items,
+                    "Không có thiết bị thất thoát.",
+                    "Mọi thiết bị đang mượn đều tồn tại trong danh mục.",
+                    LOST_PAGE_KEY,
+                    "thiết bị thất thoát",
+                )
 
     with st.container(border=True):
         card_header(
