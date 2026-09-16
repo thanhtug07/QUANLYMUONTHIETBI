@@ -1125,26 +1125,6 @@ svg { max-width: 100%; }
 
 .timeline-meta { font-size: var(--text-xs); color: var(--color-text-muted); }
 
-/* ---------- 21e. SKELETON LOADING ----------
-   Thay spinner cho vùng lớn (KPI/chart) — xung nhẹ, không quay tròn. */
-@keyframes skeleton-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.55; }
-}
-
-.skeleton {
-  border-radius: var(--radius-md);
-  background: var(--color-accent-tint);
-  animation: skeleton-pulse 1.4s ease-in-out infinite;
-}
-
-.skeleton-row { height: 14px; margin: var(--spacing-sm) 0; }
-.skeleton-block { height: 200px; }
-
-@media (prefers-reduced-motion: reduce) {
-  .skeleton { animation: none; opacity: 0.7; }
-}
-
 /* ---------- 21f. BULK BAR SLIDE-IN ----------
    Thanh thao tác hàng loạt trượt vào khi chọn dòng; lòe nhẹ đủ để mắt bắt
    được mà không cản trở thao tác. */
