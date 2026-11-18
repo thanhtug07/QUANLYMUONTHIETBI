@@ -67,28 +67,31 @@ def _parse_upload(data: bytes, columns: Sequence[str]) -> Tuple[List[Dict[str, s
     Trả về (rows, missing_columns): nếu thiếu cột bắt buộc thì trả về danh sách
     rỗng kèm tên các cột còn thiếu (UI hiển thị lỗi thay vì ghi file sai).
     """
-    text = data.decode("utf-8-sig", errors="replace")
-    reader = csv.reader(io.StringIO(text))
+    text = data.decode("utf-8-sig", errors="replace").replace("\x00", "")
     try:
-        header = next(reader)
-    except StopIteration:
+        reader = csv.reader(io.StringIO(text))
+        try:
+            header = next(reader)
+        except StopIteration:
+            return [], list(columns)
+
+        index_by_name = {normalize_text(cell).lower(): position for position, cell in enumerate(header)}
+        missing = [column for column in columns if column.lower() not in index_by_name]
+        if missing:
+            return [], missing
+
+        rows: List[Dict[str, str]] = []
+        for raw in reader:
+            if not any(cell.strip() for cell in raw):
+                continue
+            rows.append(
+                {
+                    column: (raw[index_by_name[column.lower()]] if index_by_name[column.lower()] < len(raw) else "")
+                    for column in columns
+                }
+            )
+    except csv.Error:
         return [], list(columns)
-
-    index_by_name = {normalize_text(cell).lower(): position for position, cell in enumerate(header)}
-    missing = [column for column in columns if column.lower() not in index_by_name]
-    if missing:
-        return [], missing
-
-    rows: List[Dict[str, str]] = []
-    for raw in reader:
-        if not any(cell.strip() for cell in raw):
-            continue
-        rows.append(
-            {
-                column: (raw[index_by_name[column.lower()]] if index_by_name[column.lower()] < len(raw) else "")
-                for column in columns
-            }
-        )
     return rows, []
 
 
@@ -171,7 +174,7 @@ def _render_file_card(
     columns = _columns_for(key)
     path = _path_for(key)
     raw_rows = data_store.read_raw_rows(path, columns)
-    raw_count = data_store.count_rows(path)
+    raw_count = len(raw_rows)
     cleaned_counts = {
         "devices": len(analysis.get("devices", [])),
         "borrowers": len(analysis.get("borrowers", [])),

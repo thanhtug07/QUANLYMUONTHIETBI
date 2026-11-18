@@ -35,18 +35,23 @@ from ui.tables import (
     render_borrow_table,
     render_top_devices_table,
 )
-from utils.helpers import esc, previous_window, time_filter_records
+from utils.helpers import esc, previous_window, reference_today, time_filter_records
 
 #: Kết quả thống kê rỗng khi bộ lọc không trả về phiếu nào (giữ nguyên key
 #: như bản gốc để phần render phía dưới không phải xử lý đặc biệt).
 _EMPTY_STATS: Dict[str, Any] = {
     "total_borrows": 0,
     "currently_borrowed": 0,
+    "returned_count": 0,
     "overdue_count": 0,
     "lost_count": 0,
+    "on_time_rate": 0.0,
+    "utilization_rate": 0.0,
     "top_devices": [],
     "top_borrowers": [],
     "borrows_by_category": [],
+    "borrows_by_month": [],
+    "borrows_by_weekday": [],
     "joined_records": [],
     "devices_by_id": {},
     "borrowers_by_id": {},
@@ -59,7 +64,8 @@ def render(analysis: Dict[str, Any]) -> None:
     base_devices: List[Dict[str, Any]] = analysis.get("devices", [])
     base_borrowers: List[Dict[str, Any]] = analysis.get("borrowers", [])
     base_records: List[Dict[str, Any]] = analysis.get("records", [])
-    today = date.today()
+    base_stats: Dict[str, Any] = analysis.get("stats") or {}
+    today: date = analysis.get("today") or reference_today(base_records)
 
     page_header(
         "Dashboard",
@@ -73,16 +79,13 @@ def render(analysis: Dict[str, Any]) -> None:
     if render_first_run_guide(analysis):
         return
 
-    filter_state = render_filter_bar(base_devices)
+    filter_state = render_filter_bar(base_devices, today=today)
 
     # ------------------------------------------------------------------
     # Lọc dữ liệu — giữ nguyên thuật toán của bản gốc
     # ------------------------------------------------------------------
-    devices_by_id = stat_mod.build_devices_by_id(base_devices)
-    borrowers_by_id = stat_mod.build_borrowers_by_id(base_borrowers)
-    filtered_records = time_filter_records(
-        base_records, filter_state.time_filter, filter_state.custom_start, filter_state.custom_end
-    )
+    devices_by_id = base_stats.get("devices_by_id") or stat_mod.build_devices_by_id(base_devices)
+    borrowers_by_id = base_stats.get("borrowers_by_id") or stat_mod.build_borrowers_by_id(base_borrowers)
     filters_active = (
         filter_state.time_filter != "Tất cả"
         or filter_state.category_filter != "Tất cả"
@@ -90,42 +93,54 @@ def render(analysis: Dict[str, Any]) -> None:
         or bool(filter_state.search_query.strip())
     )
 
-    filtered_records = apply_listing_filters(
-        filtered_records,
-        category=filter_state.category_filter,
-        status=filter_state.status_filter,
-        search=filter_state.search_query,
-        devices_by_id=devices_by_id,
-        borrowers_by_id=borrowers_by_id,
-        today=today,
-    )
-
-    filtered_record_device_ids = {str(r.get("device_id", "")).strip() for r in filtered_records}
-    filtered_record_borrower_ids = {str(r.get("borrower_id", "")).strip() for r in filtered_records}
-    if filters_active:
-        filtered_devices = [
-            d for d in base_devices if str(d.get("device_id", "")).strip() in filtered_record_device_ids
-        ]
-        filtered_borrowers = [
-            b for b in base_borrowers if str(b.get("borrower_id", "")).strip() in filtered_record_borrower_ids
-        ]
-    else:
+    if not filters_active and base_stats:
+        filtered_records = list(base_records)
         filtered_devices = list(base_devices)
         filtered_borrowers = list(base_borrowers)
-
-    if filtered_records:
-        overdue_records = validators.find_overdue_records(filtered_records, today)
-        lost_ids = validators.find_lost_devices(filtered_records, today)
-        stats = stat_mod.compute_all(
-            filtered_devices,
-            filtered_borrowers,
-            filtered_records,
-            overdue_records=overdue_records,
-            lost_devices=lost_ids,
+        stats = base_stats
+    else:
+        filtered_records = time_filter_records(
+            base_records,
+            filter_state.time_filter,
+            filter_state.custom_start,
+            filter_state.custom_end,
             today=today,
         )
-    else:
-        stats = dict(_EMPTY_STATS)
+        filtered_records = apply_listing_filters(
+            filtered_records,
+            category=filter_state.category_filter,
+            status=filter_state.status_filter,
+            search=filter_state.search_query,
+            devices_by_id=devices_by_id,
+            borrowers_by_id=borrowers_by_id,
+            today=today,
+        )
+        if filter_state.category_filter != "Tất cả":
+            filtered_devices = [
+                d for d in base_devices
+                if str(d.get("category", "")).strip() == filter_state.category_filter
+            ]
+        else:
+            filtered_devices = list(base_devices)
+        filtered_borrowers = list(base_borrowers)
+
+        if filtered_records:
+            overdue_records = validators.find_overdue_records(filtered_records, today)
+            lost_ids = validators.find_lost_devices(filtered_records, today)
+            stats = stat_mod.compute_all(
+                filtered_devices,
+                filtered_borrowers,
+                filtered_records,
+                overdue_records=overdue_records,
+                lost_devices=lost_ids,
+                today=today,
+            )
+        else:
+            stats = {
+                **_EMPTY_STATS,
+                "devices_by_id": devices_by_id,
+                "borrowers_by_id": borrowers_by_id,
+            }
 
     # ------------------------------------------------------------------
     # Pill delta KPI: kỳ hiện tại so với kỳ trước liền kề cùng độ dài.
@@ -140,29 +155,29 @@ def render(analysis: Dict[str, Any]) -> None:
     if prev_bounds is not None and filtered_records:
         prev_start, prev_end = prev_bounds
         prev_records = apply_listing_filters(
-            time_filter_records(base_records, "Tùy chỉnh", prev_start, prev_end),
+            time_filter_records(base_records, "Tùy chỉnh", prev_start, prev_end, today=today),
             category=filter_state.category_filter,
             status=filter_state.status_filter,
             search=filter_state.search_query,
             devices_by_id=devices_by_id,
             borrowers_by_id=borrowers_by_id,
-            today=today,
+            today=prev_end,
         )
         prev_active = stat_mod.count_currently_borrowed(prev_records)
         prev_overdue = validators.find_overdue_records(prev_records, prev_end)
         prev_lost = validators.find_lost_devices(prev_records, prev_end)
 
-        currently_borrowed_now = stat_mod.count_currently_borrowed(filtered_records)
-        overdue_now = validators.find_overdue_records(filtered_records, today)
-        lost_now = validators.find_lost_devices(filtered_records, today)
+        currently_borrowed_now = int(stats.get("currently_borrowed", 0) or 0)
+        overdue_now_count = int(stats.get("overdue_count", 0) or 0)
+        lost_now_count = int(stats.get("lost_count", 0) or 0)
 
         delta_active = stat_mod.format_delta(currently_borrowed_now, prev_active) or ""
-        delta_overdue = stat_mod.format_delta(len(overdue_now), len(prev_overdue)) or ""
+        delta_overdue = stat_mod.format_delta(overdue_now_count, len(prev_overdue)) or ""
         if delta_overdue:
-            tone_overdue = "good" if len(overdue_now) <= len(prev_overdue) else "bad"
-        delta_lost = stat_mod.format_delta(len(lost_now), len(prev_lost)) or ""
+            tone_overdue = "good" if overdue_now_count <= len(prev_overdue) else "bad"
+        delta_lost = stat_mod.format_delta(lost_now_count, len(prev_lost)) or ""
         if delta_lost:
-            tone_lost = "good" if len(lost_now) <= len(prev_lost) else "bad"
+            tone_lost = "good" if lost_now_count <= len(prev_lost) else "bad"
 
     # ------------------------------------------------------------------
     # KPI — số liệu thật từ statistics.compute_all (+ delta kỳ nếu có)
@@ -290,7 +305,7 @@ def render(analysis: Dict[str, Any]) -> None:
                     "Hoạt động mượn thiết bị",
                     "Tổng lượt mượn tích luỹ theo tháng từ ngày mượn của phiếu.",
                 )
-                monthly = stat_mod.borrows_by_month(filtered_records)
+                monthly = stats.get("borrows_by_month") or stat_mod.borrows_by_month(filtered_records)
                 render_trend_area(monthly, stats)
 
         with focal_right:

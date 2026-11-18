@@ -355,8 +355,27 @@ def find_busy_device_conflicts(
 
 def _without_key(rows: List[Dict[str, Any]], key_field: str, key_value: Any) -> List[Dict[str, Any]]:
     """Bỏ các dòng có cùng khoá (khi EDIT, bản ghi cũ không tính là trùng chính nó)."""
-    target = str(key_value or "").strip().upper()
-    return [r for r in rows if str(r.get(key_field, "")).strip().upper() != target]
+    target = "".join(str(key_value or "").upper().split())
+    return [r for r in rows if "".join(str(r.get(key_field, "")).upper().split()) != target]
+
+
+def _candidate_duplicate_errors(
+    candidate: Dict[str, Any], others: List[Dict[str, Any]], id_field: str, table: str
+) -> List[Dict[str, Any]]:
+    """Kiểm tra ứng viên có trùng mã với các dòng đang có trong `others` hay không ([SET] O(1))."""
+    cand_id = "".join(str(candidate.get(id_field, "") or "").upper().split())
+    if not cand_id:
+        return []
+    existing_ids = {"".join(str(r.get(id_field, "") or "").upper().split()) for r in others} - {""}
+    if cand_id in existing_ids:
+        val = str(candidate.get(id_field, "")).strip()
+        return [
+            make_error(
+                _row_no(candidate), id_field, val,
+                f"Trùng mã '{val}' (đã xuất hiện trước đó)", table,
+            )
+        ]
+    return []
 
 
 def validate_candidate_device(
@@ -369,7 +388,7 @@ def validate_candidate_device(
     others = _without_key(devices, "device_id", candidate.get("device_id")) if editing else list(devices)
     errors = find_missing_required(
         [candidate], ["device_id", "device_name", "category", "status"], "devices")
-    errors += find_duplicate_ids(others + [candidate], "device_id", "devices")[0]
+    errors += _candidate_duplicate_errors(candidate, others, "device_id", "devices")
     if existing_records is not None:
         errors += find_category_conflicts([candidate], existing_records)
     return errors
@@ -384,7 +403,7 @@ def validate_candidate_borrower(
     others = _without_key(borrowers, "borrower_id", candidate.get("borrower_id")) if editing else list(borrowers)
     errors = find_missing_required(
         [candidate], ["borrower_id", "name", "class_name"], "borrowers")
-    errors += find_duplicate_ids(others + [candidate], "borrower_id", "borrowers")[0]
+    errors += _candidate_duplicate_errors(candidate, others, "borrower_id", "borrowers")
     phone = str(candidate.get("phone", "") or "").strip()
     if phone and not is_valid_phone(phone):
         errors.append(
@@ -416,7 +435,7 @@ def validate_candidate_record(
     errors = find_missing_required(
         [candidate], ["borrow_id", "borrower_id", "device_id", "borrow_date", "due_date"],
         "borrow_records")
-    errors += find_duplicate_ids(others + [candidate], "borrow_id", "borrow_records")[0]
+    errors += _candidate_duplicate_errors(candidate, others, "borrow_id", "borrow_records")
     errors += find_unknown_references([candidate], valid_device_ids, valid_borrower_ids)[0]
     errors += find_date_logic_errors([candidate])
     errors += find_status_logic_errors([candidate])

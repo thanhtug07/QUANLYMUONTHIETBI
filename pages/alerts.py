@@ -30,7 +30,7 @@ from ui.dialogs import detail_dialog, open_dialog, render_pending_dialog
 from ui.layout import card_header, page_header, two_column_grid
 from ui.metrics import MetricCard, render_kpi_grid
 from ui.states import render_empty_state
-from utils.helpers import esc, format_date, status_label
+from utils.helpers import esc, format_date, reference_today, status_label
 
 #: Số mục mỗi trang trong từng nhóm (quá số này thì sang trang, không kéo dài).
 ALERT_PAGE_SIZE = 5
@@ -41,8 +41,10 @@ def _alert_item_html(
 ) -> str:
     # Hàng compact 1 dòng để scan nhanh: marker + tiêu đề + mã + chi tiết + badge.
     # Chữ/mức độ vẫn là tín hiệu chính (marker/badge chỉ hỗ trợ scan, kèm dot+chữ
-    # theo design system nên đạt accessibility). `details` đã được esc() ở nơi tạo.
-    detail_html = '<span class="alert-sep">•</span>'.join(f"<span>{text}</span>" for text in details)
+    # theo design system nên đạt accessibility).
+    detail_html = '<span class="alert-sep">•</span>'.join(
+        f"<span>{esc(text)}</span>" for text in details
+    )
     sev_class = f" sev-{severity}" if severity in ("danger", "warning", "info") else ""
     return (
         f'<div class="alert-item alert-compact{sev_class}">'
@@ -238,8 +240,12 @@ def _render_group(
                 help="Ẩn cảnh báo này trong phiên hiện tại.",
             )
     # Ô trống bù cho đủ 5 hàng để 2 block cạnh nhau cân chiều cao.
-    for _ in range(max(0, ALERT_PAGE_SIZE - len(page_rows))):
-        st.markdown('<div class="alert-slot-empty" aria-hidden="true"></div>', unsafe_allow_html=True)
+    empty_slots = max(0, ALERT_PAGE_SIZE - len(page_rows))
+    if empty_slots:
+        st.markdown(
+            '<div class="alert-slot-empty" aria-hidden="true"></div>' * empty_slots,
+            unsafe_allow_html=True,
+        )
     render_pagination(
         page_key, total_pages, len(page_rows), len(items), noun,
         page_size=ALERT_PAGE_SIZE,
@@ -252,26 +258,30 @@ def _overdue_items(
     borrowers_by_id: Dict[str, Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
-    for record in overdue_records:
+    seen_keys: set[str] = set()
+    for index, record in enumerate(overdue_records):
         borrow_id = str(record.get("borrow_id", "")).strip()
         device_id = str(record.get("device_id", "")).strip()
         borrower_id = str(record.get("borrower_id", "")).strip()
         days = int(record.get("days_overdue", 0) or 0)
         label = status_label(record.get("status", ""))
+        base_key = f"alert_overdue_{borrow_id}"
+        item_key = f"{base_key}_{index}" if base_key in seen_keys else base_key
+        seen_keys.add(item_key)
         items.append(
             {
                 "title": f"Quá hạn {days} ngày",
                 "meta": borrow_id,
                 "details": [
-                    esc(devices_by_id.get(device_id, {}).get("device_name", "") or device_id),
-                    esc(borrowers_by_id.get(borrower_id, {}).get("name", "") or borrower_id),
-                    esc(borrowers_by_id.get(borrower_id, {}).get("phone", "") or "—"),
-                    f"Hạn trả {esc(format_date(record.get('due_date')))}",
+                    str(devices_by_id.get(device_id, {}).get("device_name", "") or device_id),
+                    str(borrowers_by_id.get(borrower_id, {}).get("name", "") or borrower_id),
+                    str(borrowers_by_id.get(borrower_id, {}).get("phone", "") or "—"),
+                    f"Hạn trả {format_date(record.get('due_date'))}",
                 ],
                 "badge_html": status_badge(label),
                 # Quá hạn >= ngưỡng thất thoát của validators là mức danger.
                 "severity": "danger" if days >= validators.LOST_THRESHOLD_DAYS else "warning",
-                "key": f"alert_overdue_{borrow_id}",
+                "key": item_key,
                 "on_click": lambda record=record: open_dialog("alert_record", record=record),
             }
         )
@@ -290,8 +300,8 @@ def _lost_items(
                 "title": "Thiết bị thất thoát",
                 "meta": str(device_id),
                 "details": [
-                    esc(device.get("device_name", "") or "Không có trong danh mục thiết bị"),
-                    esc(device.get("category", "") or "—"),
+                    str(device.get("device_name", "") or "Không có trong danh mục thiết bị"),
+                    str(device.get("category", "") or "—"),
                 ],
                 "badge_html": status_badge("Thất thoát"),
                 "severity": "danger",
@@ -313,8 +323,8 @@ def _data_items(errors: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "title": f"Lỗi {field}",
                 "meta": f"{table} · dòng {error.get('row', '?')}",
                 "details": [
-                    esc(value) if value else "—",
-                    esc(str(error.get("error", ""))),
+                    value if value else "—",
+                    str(error.get("error", "")),
                 ],
                 "badge_html": severity_badge(severity_label("Dữ liệu lỗi")),
                 "severity": "danger",
@@ -338,12 +348,13 @@ def render(analysis: Dict[str, Any]) -> None:
     devices: List[Dict[str, Any]] = analysis.get("devices", [])
     borrowers: List[Dict[str, Any]] = analysis.get("borrowers", [])
     errors: List[Dict[str, Any]] = analysis.get("errors", [])
+    stats: Dict[str, Any] = analysis.get("stats") or {}
 
-    devices_by_id = stat_mod.build_devices_by_id(devices)
-    borrowers_by_id = stat_mod.build_borrowers_by_id(borrowers)
-    today = date.today()
+    devices_by_id = stats.get("devices_by_id") or stat_mod.build_devices_by_id(devices)
+    borrowers_by_id = stats.get("borrowers_by_id") or stat_mod.build_borrowers_by_id(borrowers)
+    today: date = analysis.get("today") or reference_today(records)
     overdue_records = validators.find_overdue_records(records, today)
-    lost_ids = validators.find_lost_devices(records, today)
+    lost_ids = stats.get("lost_ids") if "lost_ids" in stats else validators.find_lost_devices(records, today)
 
     page_header(
         "Cảnh báo",
@@ -381,22 +392,33 @@ def render(analysis: Dict[str, Any]) -> None:
         "search": str(st.session_state.get("alert_search", "")),
         "severity": str(st.session_state.get("alert_severity", "Tất cả")),
     }
-    preview_filtered = (
-        filter_alert_items(overdue_items, **pre_filters),
-        filter_alert_items(lost_items, **pre_filters),
-        filter_alert_items(data_items, **pre_filters),
-    )
-    filters = _render_toolbar(alert_export_rows(*preview_filtered))
-    overdue_items = filter_alert_items(overdue_items, **filters)
-    lost_items = filter_alert_items(lost_items, **filters)
-    data_items = filter_alert_items(data_items, **filters)
-
-    # Ẩn các mục đã bấm "Đã xử lý" trong phiên (không xoá dữ liệu gốc).
     dismissed = _dismissed_keys()
+    preview_overdue = [
+        i for i in filter_alert_items(overdue_items, **pre_filters) if i["key"] not in dismissed
+    ]
+    preview_lost = [
+        i for i in filter_alert_items(lost_items, **pre_filters) if i["key"] not in dismissed
+    ]
+    preview_data = [
+        i for i in filter_alert_items(data_items, **pre_filters) if i["key"] not in dismissed
+    ]
+    filters = _render_toolbar(alert_export_rows(preview_overdue, preview_lost, preview_data))
+    if filters == pre_filters:
+        overdue_items = preview_overdue
+        lost_items = preview_lost
+        data_items = preview_data
+    else:
+        overdue_items = [
+            i for i in filter_alert_items(overdue_items, **filters) if i["key"] not in dismissed
+        ]
+        lost_items = [
+            i for i in filter_alert_items(lost_items, **filters) if i["key"] not in dismissed
+        ]
+        data_items = [
+            i for i in filter_alert_items(data_items, **filters) if i["key"] not in dismissed
+        ]
+
     if dismissed:
-        overdue_items = [i for i in overdue_items if i["key"] not in dismissed]
-        lost_items = [i for i in lost_items if i["key"] not in dismissed]
-        data_items = [i for i in data_items if i["key"] not in dismissed]
         st.caption(
             f"Đã ẩn {len(dismissed)} mục đã xử lý trong phiên này "
             "(bấm Đặt lại để hiện lại)."
@@ -427,13 +449,13 @@ def render(analysis: Dict[str, Any]) -> None:
             with st.container(border=True):
                 card_header(
                     "Thất thoát",
-                    "Thiết bị đang mượn nhưng không còn trong danh mục quản lý.",
+                    "Thiết bị khai báo mất hoặc quá hạn từ 30 ngày trở lên.",
                     chip=f"{len(lost_items)}/{len(lost_ids)}",
                 )
                 _render_group(
                     lost_items,
                     "Không có thiết bị thất thoát.",
-                    "Mọi thiết bị đang mượn đều tồn tại trong danh mục.",
+                    "Không có thiết bị nào bị mất hoặc quá hạn nặng.",
                     LOST_PAGE_KEY,
                     "thiết bị thất thoát",
                 )
@@ -494,8 +516,8 @@ def render(analysis: Dict[str, Any]) -> None:
                 ],
                 badges=["Thất thoát"],
                 note=(
-                    "Thiết bị vẫn đang trong phiếu mượn chưa trả nhưng không còn "
-                    "trong danh mục thiết bị — cần kiểm tra thực tế."
+                    "Thiết bị thuộc diện thất thoát (phiếu ghi nhận mất hoặc quá hạn "
+                    "từ 30 ngày trở lên) — cần kiểm tra thực tế."
                 ),
             ),
             "alert_error": lambda payload: detail_dialog(

@@ -18,10 +18,11 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import statistics as stat_mod
 import validators
-from cleaners import BORROWER_COLUMNS, DEVICE_COLUMNS, RECORD_COLUMNS
+from cleaners import BORROWER_COLUMNS, DEVICE_COLUMNS, RECORD_COLUMNS, parse_date
 from ui.app_shell import goto_page
+from ui.badges import status_badge
 from ui.states import render_first_run
-from utils.helpers import format_date, format_timestamp, status_label, time_filter_records
+from utils.helpers import esc, format_date, format_timestamp, reference_today, status_label, time_filter_records
 
 #: Cột chuẩn của từng file CSV (dùng cho CRUD + trang Dữ liệu).
 CSV_FILES: Tuple[Tuple[str, str, Tuple[str, ...]], ...] = (
@@ -215,6 +216,20 @@ def borrower_rows(
 # Lọc phiếu mượn — dùng lại đúng hàm nghiệp vụ hiện có
 # ----------------------------------------------------------------------
 
+def _is_lost_record(row: Dict[str, Any], lost_device_ids: set[str], today: date) -> bool:
+    """Kiểm tra phiếu có thực sự là phiếu thất thoát/quá hạn nặng của thiết bị mất hay không (loại phiếu đã trả)."""
+    device_id = str(row.get("device_id", "")).strip()
+    if device_id not in lost_device_ids:
+        return False
+    status = str(row.get("status", "")).strip().lower()
+    if status == "lost":
+        return True
+    if status == "returned" or str(row.get("return_date", "") or "").strip():
+        return False
+    due = parse_date(row.get("due_date"))
+    return due is not None and (today - due).days >= validators.LOST_THRESHOLD_DAYS
+
+
 def filter_records(
     records: Sequence[Dict[str, Any]],
     search: str = "",
@@ -224,6 +239,7 @@ def filter_records(
     custom_end: Optional[date] = None,
     devices_by_id: Optional[Dict[str, Dict[str, Any]]] = None,
     borrowers_by_id: Optional[Dict[str, Dict[str, Any]]] = None,
+    today: Optional[date] = None,
 ) -> List[Dict[str, Any]]:
     """
     Lọc phiếu mượn theo thời gian / trạng thái / từ khoá.
@@ -234,18 +250,19 @@ def filter_records(
     """
     devices_by_id = devices_by_id or {}
     borrowers_by_id = borrowers_by_id or {}
+    ref_today = reference_today(records, today)
 
-    result = time_filter_records(list(records), time_mode, custom_start, custom_end)
+    result = time_filter_records(list(records), time_mode, custom_start, custom_end, today=ref_today)
     if status == "Đang mượn":
         result = stat_mod.filter_by_status(result, "borrowing")
     elif status == "Đã trả":
         result = stat_mod.filter_by_status(result, "returned")
     elif status == "Quá hạn":
-        result = stat_mod.filter_overdue(result, date.today())
+        result = stat_mod.filter_overdue(result, ref_today)
     elif status == "Thất thoát":
-        lost_device_ids = set(validators.find_lost_devices(result, date.today()))
+        lost_device_ids = set(validators.find_lost_devices(result, ref_today))
         result = [
-            row for row in result if str(row.get("device_id", "")).strip() in lost_device_ids
+            row for row in result if _is_lost_record(row, lost_device_ids, ref_today)
         ]
     return stat_mod.search_records(
         result, search, devices_by_id=devices_by_id, borrowers_by_id=borrowers_by_id
@@ -270,7 +287,7 @@ def apply_listing_filters(
     """
     devices_by_id = devices_by_id or {}
     borrowers_by_id = borrowers_by_id or {}
-    today = today or date.today()
+    today = reference_today(records, today)
 
     result = list(records)
     if category != "Tất cả":
@@ -285,7 +302,7 @@ def apply_listing_filters(
     elif status == "Thất thoát":
         lost_device_ids = set(validators.find_lost_devices(result, today))
         result = [
-            row for row in result if str(row.get("device_id", "")).strip() in lost_device_ids
+            row for row in result if _is_lost_record(row, lost_device_ids, today)
         ]
 
     return stat_mod.search_records(
@@ -355,3 +372,60 @@ def file_meta_rows(key: str, row_count: int, columns: Sequence[str], modified: O
         ("Số cột", str(len(columns))),
         ("Cập nhật gần nhất", format_timestamp(modified)),
     ]
+
+
+def recent_history_html(
+    records: Sequence[Dict[str, Any]],
+    devices_by_id: Dict[str, Dict[str, Any]],
+    borrowers_by_id: Dict[str, Dict[str, Any]],
+    filter_field: str,
+    filter_id: str,
+    limit: int = 5,
+) -> str:
+    """
+    Sinh bảng HTML tóm tắt 5 phiếu mượn gần nhất của một thiết bị hoặc người mượn
+    để hiển thị trong modal Xem chi tiết (chỉ dùng dữ liệu thật từ CSV).
+    """
+    target = str(filter_id).strip().upper()
+    matched = [
+        r for r in records
+        if str(r.get(filter_field, "")).strip().upper() == target
+    ]
+    if not matched:
+        return ""
+    matched.sort(
+        key=lambda r: (parse_date(r.get("borrow_date")) or date.min),
+        reverse=True,
+    )
+    rows_html: List[str] = []
+    is_device = filter_field == "device_id"
+    col_header = "Người mượn" if is_device else "Thiết bị"
+    for r in matched[:limit]:
+        bid = esc(str(r.get("borrow_id", "")).strip())
+        if is_device:
+            bor_id = str(r.get("borrower_id", "")).strip()
+            bor_name = str(borrowers_by_id.get(bor_id, {}).get("name", "")).strip()
+            counterpart = esc(f"{bor_id} · {bor_name}".strip(" ·") or "—")
+        else:
+            dev_id = str(r.get("device_id", "")).strip()
+            dev_name = str(devices_by_id.get(dev_id, {}).get("device_name", "")).strip()
+            counterpart = esc(f"{dev_id} · {dev_name}".strip(" ·") or "—")
+        b_date = esc(format_date(r.get("borrow_date")))
+        d_date = esc(format_date(r.get("due_date")))
+        badge = status_badge(status_label(r.get("status", "")))
+        rows_html.append(
+            f"<tr>"
+            f'<td class="best-id">{bid}</td>'
+            f"<td>{counterpart}</td>"
+            f"<td>{b_date}</td>"
+            f"<td>{d_date}</td>"
+            f"<td>{badge}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="form-section"><span class="form-section-title">'
+        f"Lịch sử mượn gần đây ({min(len(matched), limit)}/{len(matched)} phiếu)</span></div>"
+        f'<table class="best-table"><thead><tr>'
+        f"<th>Mã phiếu</th><th>{col_header}</th><th>Ngày mượn</th><th>Hạn trả</th><th>Trạng thái</th>"
+        f"</tr></thead><tbody>{''.join(rows_html)}</tbody></table>"
+    )

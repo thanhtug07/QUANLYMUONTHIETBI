@@ -21,10 +21,31 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import date
+import importlib.machinery
+import importlib.util
+from pathlib import Path
+import sys as _sys
 from typing import Any, Dict, List, Optional, Tuple
 
 import validators
 from cleaners import parse_date
+
+# Re-export các hàm chuẩn từ stdlib `statistics` (mean, stdev, NormalDist...)
+# để tránh gãy thư viện bên thứ ba khi `statistics.py` nằm ở thư mục gốc.
+try:
+    _THIS_DIR = Path(__file__).resolve().parent
+    _STDLIB_PATHS = [
+        p for p in _sys.path
+        if p and Path(p).resolve() != _THIS_DIR
+    ]
+    _spec = importlib.machinery.PathFinder.find_spec("statistics", _STDLIB_PATHS)
+    if _spec and _spec.loader:
+        _stdlib_stat = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(_stdlib_stat)
+        for _attr in getattr(_stdlib_stat, "__all__", ()):
+            globals().setdefault(_attr, getattr(_stdlib_stat, _attr))
+except Exception:
+    pass
 
 #: Trạng thái phiếu = đang mượn (chưa trả).
 ACTIVE_RECORD_STATUSES: frozenset = frozenset({"borrowing", "overdue"})

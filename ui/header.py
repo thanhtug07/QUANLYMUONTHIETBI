@@ -13,9 +13,20 @@ import streamlit as st
 from utils.helpers import esc, icon
 
 
-def render_topbar(context: str = "") -> None:
-    """Topbar trắng, gọn một dòng; `context` là tên trang đang mở."""
+def render_topbar(context: str = "", alert_count: int = 0) -> None:
+    """Topbar trắng, gọn một dòng; `context` là tên trang đang mở, `alert_count` là số cảnh báo active."""
     context_html = f'<span class="page-chip">{esc(context)}</span>' if context else ""
+    badge_html = (
+        f'<span class="bell-badge" aria-label="{int(alert_count)} cảnh báo">{int(alert_count)}</span>'
+        if alert_count > 0
+        else ""
+    )
+    bell_title = (
+        f"{int(alert_count)} cảnh báo cần xử lý"
+        if alert_count > 0
+        else "Không có cảnh báo mới"
+    )
+    bell_cls = "icon-btn has-alerts" if alert_count > 0 else "icon-btn"
     st.markdown(
         f'<div class="app-topbar">'
         f'<div class="brand">'
@@ -27,7 +38,8 @@ def render_topbar(context: str = "") -> None:
         f"{context_html}"
         f"</div>"
         f'<div class="topbar-right">'
-        f'<span class="icon-btn" role="img" aria-label="Thông báo">{icon("bell", 17)}</span>'
+        f'<span class="{bell_cls}" role="img" aria-label="Thông báo: {esc(bell_title)}" title="{esc(bell_title)}">'
+        f'{icon("bell", 17)}{badge_html}</span>'
         f'<span class="user-chip">'
         f'<span class="user-avatar">QL</span>'
         f'<span class="user-name">Người quản lý</span>'

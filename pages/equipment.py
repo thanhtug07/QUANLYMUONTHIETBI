@@ -28,6 +28,7 @@ from pages.common import (
     count_by,
     device_detail_rows,
     device_rows,
+    recent_history_html,
     render_first_run_guide,
 )
 from ui.app_shell import clear_data_cache
@@ -50,7 +51,7 @@ from ui.tables import (
     render_row_action_bar,
     render_table_export,
 )
-from utils.helpers import device_category_options, status_label
+from utils.helpers import device_category_options, esc, status_label
 
 #: Cột hiển thị của bảng thiết bị.
 TABLE_COLUMNS: List[str] = ["Mã thiết bị", "Tên thiết bị", "Loại thiết bị", "Trạng thái", "Lượt mượn"]
@@ -80,6 +81,7 @@ def _reset_filters() -> None:
     for key in FILTER_KEYS:
         st.session_state.pop(key, None)
     st.session_state.pop(PAGE_KEY, None)
+    st.session_state.pop("dialog", None)
     st.rerun()
 
 
@@ -235,7 +237,7 @@ def _device_form(analysis: Dict[str, Any], device: Optional[Dict[str, Any]]) -> 
         return
 
     candidate = {
-        "device_id": str(device_id).strip().upper(),
+        "device_id": "".join(str(device_id).upper().split()),
         "device_name": str(device_name).strip(),
         "category": str(category).strip(),
         "status": choice_code(DEVICE_STATUS_CHOICES, status_choice),
@@ -263,13 +265,22 @@ def _dialog_view(payload: Dict[str, Any], analysis: Dict[str, Any]) -> None:
     if device is None:
         detail_dialog("Không tìm thấy thiết bị", [("Mã thiết bị", str(payload.get("device_id", "")))])
         return
-    borrow_count = count_by(analysis.get("records", []), "device_id").get(
-        str(device.get("device_id", "")).strip(), 0
+    records = analysis.get("records", [])
+    stats = analysis.get("stats") or {}
+    device_id = str(device.get("device_id", "")).strip()
+    borrow_count = count_by(records, "device_id").get(device_id, 0)
+    history = recent_history_html(
+        records,
+        stats.get("devices_by_id") or {},
+        stats.get("borrowers_by_id") or {},
+        "device_id",
+        device_id,
     )
     detail_dialog(
-        f"Thiết bị {device.get('device_id', '')}",
+        f"Thiết bị {device_id}",
         device_detail_rows(device, borrow_count),
         badges=[status_label(device.get("status", ""))],
+        extra_html=history,
     )
 
 
@@ -502,8 +513,8 @@ def render(analysis: Dict[str, Any]) -> None:
             selected_row = selected_rows[0]
             device_id = selected_row["Mã thiết bị"]
             render_row_action_bar(
-                f'Đang chọn <strong>{device_id}</strong> · {selected_row["Tên thiết bị"]} · '
-                f'{selected_row["Trạng thái"]}',
+                f'Đang chọn <strong>{esc(device_id)}</strong> · {esc(selected_row["Tên thiết bị"])} · '
+                f'{esc(selected_row["Trạng thái"])}',
                 [
                     ("Xem", "device_action_view", lambda: open_dialog("view", device_id=device_id), ""),
                     ("Sửa", "device_action_edit", lambda: open_dialog("edit", device_id=device_id), ""),

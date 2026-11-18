@@ -12,6 +12,7 @@ không phụ thuộc font icon ngoài).
 """
 from __future__ import annotations
 
+import functools
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -75,6 +76,7 @@ def page_label(slug: str) -> str:
     return DEFAULT_PAGE
 
 
+@functools.lru_cache(maxsize=16)
 def _nav_icon_css(active: str) -> str:
     """
     CSS động cho icon của từng mục nav.
@@ -87,12 +89,13 @@ def _nav_icon_css(active: str) -> str:
         color = tokens.COLOR_PRIMARY if item.slug == active else tokens.TEXT_SOFT
         uri = icon_data_uri(item.icon_name, color)
         rules.append(
-            f'[class*="st-key-{NAV_KEY_PREFIX}{item.slug}"] button '
+            f'.st-key-{NAV_KEY_PREFIX}{item.slug} button '
             f'{{ background-image: url("{uri}"); }}'
         )
     return "\n".join(rules)
 
 
+@functools.lru_cache(maxsize=1)
 def _build_tag() -> str:
     """
     Mã commit ngắn của bản code đang chạy (để đối chiếu bản cũ/mới khi
@@ -140,6 +143,7 @@ def render_sidebar(
 
     with st.sidebar:
         st.markdown(
+            f"<style>{_nav_icon_css(active)}</style>"
             f'<div class="side-brand">'
             f'<span class="brand-mark">{icon("box", 19)}</span>'
             f'<span class="side-brand-text">'
@@ -148,8 +152,6 @@ def render_sidebar(
             f"</span></div>",
             unsafe_allow_html=True,
         )
-
-        st.markdown(f"<style>{_nav_icon_css(active)}</style>", unsafe_allow_html=True)
 
         for section_title, items in NAV_SECTIONS:
             st.markdown(
@@ -168,25 +170,18 @@ def render_sidebar(
                 )
 
         status_text = "Hệ thống sẵn sàng" if data_ok else "Dữ liệu có lỗi"
+        meta_html = _data_meta_html(counts)
+        build_tag = _build_tag()
+        version_html = (
+            f'<div class="side-version">bản {esc(build_tag)}</div>'
+            if build_tag
+            else ""
+        )
         st.markdown(
             f'<div class="side-pill-row"><span class="pill" role="status">'
-            f'<span class="dot"></span>{esc(status_text)}</span></div>',
-            unsafe_allow_html=True,
-        )
-        meta_html = _data_meta_html(counts)
-        if meta_html:
-            st.markdown(meta_html, unsafe_allow_html=True)
-
-        # Tem version: biết chắc trình duyệt đang chạy bản code nào.
-        build_tag = _build_tag()
-        if build_tag:
-            st.markdown(
-                f'<div class="side-version">bản {esc(build_tag)}</div>',
-                unsafe_allow_html=True,
-            )
-        # Khối user cuối sidebar — cùng thành phần với topbar (người quản lý),
-        # KHÔNG thêm authentication mới.
-        st.markdown(
+            f'<span class="dot"></span>{esc(status_text)}</span></div>'
+            f"{meta_html}"
+            f"{version_html}"
             '<div class="side-user">'
             '<span class="user-avatar">QL</span>'
             '<span class="side-user-text">'

@@ -15,9 +15,10 @@ Chỉ chứa hàm thuần (pure), KHÔNG chứa business logic mới:
 """
 from __future__ import annotations
 
+import functools
 import html
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 from urllib.parse import quote
 
 from cleaners import normalize_text, parse_date, to_iso
@@ -114,11 +115,39 @@ def device_category_options(devices: List[Dict[str, Any]]) -> List[str]:
     return ["Tất cả", *categories]
 
 
+def reference_today(
+    records: Optional[Sequence[Dict[str, Any]]] = None,
+    today: Optional[date] = None,
+) -> date:
+    """
+    Mốc ngày tham chiếu cho dữ liệu mượn-trả:
+      - Nếu caller truyền rõ `today` -> dùng `today`.
+      - Nếu không truyền -> lấy ngày hoạt động mới nhất (`borrow_date` / `return_date`)
+        trong `records` (khi tập dữ liệu là bản chụp tĩnh trong quá khứ), hoặc
+        `date.today()` nếu dữ liệu rỗng / có ngày ở hiện tại.
+    """
+    if today is not None:
+        return today
+    real_today = date.today()
+    if not records:
+        return real_today
+    latest: Optional[date] = None
+    for row in records:
+        for field in ("borrow_date", "return_date"):
+            parsed = parse_date(row.get(field))
+            if parsed is not None and (latest is None or parsed > latest):
+                latest = parsed
+    if latest is not None and latest < real_today:
+        return latest
+    return real_today
+
+
 def time_filter_records(
     records: List[Dict[str, Any]],
     mode: str,
     start: Optional[date] = None,
     end: Optional[date] = None,
+    today: Optional[date] = None,
 ) -> List[Dict[str, Any]]:
     """
     Lọc phiếu theo mốc thời gian (giữ nguyên thuật toán của bản gốc app.py).
@@ -129,7 +158,7 @@ def time_filter_records(
     if mode == "Tất cả":
         return list(records)
 
-    today = date.today()
+    today = reference_today(records, today)
     if mode == "7 ngày":
         start_dt = today - timedelta(days=7)
         end_dt = today
@@ -184,6 +213,14 @@ def previous_window(
     return prev_end - timedelta(days=length), prev_end
 
 
+@functools.lru_cache(maxsize=4096)
+def _format_date_str(text: str) -> str:
+    parsed = parse_date(text)
+    if parsed is None:
+        return text
+    return parsed.strftime("%d/%m/%Y")
+
+
 def format_date(value: Any) -> str:
     """
     Định dạng ngày để hiển thị (dd/mm/yyyy).
@@ -195,10 +232,7 @@ def format_date(value: Any) -> str:
     text = normalize_text(value)
     if not text:
         return "—"
-    iso = to_iso(text)
-    if not iso:
-        return text
-    return date.fromisoformat(iso).strftime("%d/%m/%Y")
+    return _format_date_str(text)
 
 
 def esc(value: Any) -> str:
@@ -214,10 +248,10 @@ def to_csv_date(value: Any) -> str:
     text = normalize_text(value)
     if not text:
         return ""
-    iso = to_iso(text)
-    if not iso:
+    parsed = parse_date(text)
+    if parsed is None:
         return text
-    return date.fromisoformat(iso).strftime("%d/%m/%Y")
+    return parsed.strftime("%d/%m/%Y")
 
 
 def month_label(value: Any) -> str:
@@ -244,6 +278,7 @@ def sort_rows(
     return sorted(rows, key=lambda row: str(row.get(key, "")), reverse=reverse)
 
 
+@functools.lru_cache(maxsize=64)
 def icon_data_uri(name: str, color: str, size: int = 16, stroke_width: float = 1.8) -> str:
     """
     SVG icon dưới dạng data-URI để nhúng vào CSS (nền của button/nav item).
@@ -260,6 +295,7 @@ def icon_data_uri(name: str, color: str, size: int = 16, stroke_width: float = 1
     return "data:image/svg+xml;utf8," + quote(svg, safe="")
 
 
+@functools.lru_cache(maxsize=64)
 def icon(name: str, size: int = 18, stroke_width: float = 1.8) -> str:
     """
     Trả về SVG inline cho icon (stroke = currentColor).

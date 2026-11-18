@@ -9,6 +9,7 @@ KHÔNG chứa business logic.
 """
 from __future__ import annotations
 
+import functools
 from pathlib import Path
 from typing import Callable, Optional, Tuple
 
@@ -16,6 +17,7 @@ import streamlit as st
 from streamlit.delta_generator import DeltaGenerator
 
 from styles import tokens
+from utils.helpers import esc
 
 STYLES_DIR = Path(__file__).resolve().parents[1] / "styles"
 CSS_FILE = STYLES_DIR / "dashboard.css"
@@ -33,25 +35,35 @@ def setup_page() -> None:
     )
 
 
+@functools.lru_cache(maxsize=4)
+def _compiled_base_css(mtime_ns: int) -> str:
+    css = CSS_FILE.read_text(encoding="utf-8")
+    return f"@import url('{tokens.FONT_URL}');\n{tokens.css_variables()}\n{css}"
+
+
 def inject_global_styles(extra_css: str = "") -> None:
     """
     Nạp font + design tokens + dashboard.css (+ CSS động tuỳ chọn).
 
     Thứ tự trong một thẻ <style>: @import (font) -> biến CSS -> component CSS.
     """
-    css = CSS_FILE.read_text(encoding="utf-8")
+    try:
+        mtime_ns = CSS_FILE.stat().st_mtime_ns
+    except OSError:
+        mtime_ns = 0
+    base_css = _compiled_base_css(mtime_ns)
     st.markdown(
-        f"<style>@import url('{tokens.FONT_URL}');\n{tokens.css_variables()}\n{css}\n{extra_css}</style>",
+        f"<style>{base_css}\n{extra_css}</style>",
         unsafe_allow_html=True,
     )
 
 
 def _page_header_html(title: str, subtitle: str, meta: str) -> None:
-    meta_html = f'<div class="page-meta">{meta}</div>' if meta else ""
+    meta_html = f'<div class="page-meta">{esc(meta)}</div>' if meta else ""
     st.markdown(
         f'<div class="page-header">'
-        f'<h1 class="page-title">{title}</h1>'
-        f'<p class="page-subtitle">{subtitle}</p>'
+        f'<h1 class="page-title">{esc(title)}</h1>'
+        f'<p class="page-subtitle">{esc(subtitle)}</p>'
         f"{meta_html}</div>",
         unsafe_allow_html=True,
     )
@@ -95,10 +107,10 @@ def card_header(title: str, subtitle: str = "", chip: str = "") -> None:
     Header chuẩn của mọi card: tiêu đề (18px/700) + chip số liệu (tuỳ chọn)
     + phụ đề metadata (13px). Dùng chung cho chart card, table card, panel.
     """
-    chip_html = f'<span class="card-count">{chip}</span>' if chip else ""
-    subtitle_html = f'<div class="card-subtitle">{subtitle}</div>' if subtitle else ""
+    chip_html = f'<span class="card-count">{esc(chip)}</span>' if chip else ""
+    subtitle_html = f'<div class="card-subtitle">{esc(subtitle)}</div>' if subtitle else ""
     st.markdown(
-        f'<div class="card-title-row"><h3 class="card-title">{title}</h3>{chip_html}</div>'
+        f'<div class="card-title-row"><h3 class="card-title">{esc(title)}</h3>{chip_html}</div>'
         f"{subtitle_html}",
         unsafe_allow_html=True,
     )

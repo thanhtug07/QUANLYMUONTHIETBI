@@ -25,6 +25,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
 
+def _norm_key(value: Any) -> str:
+    """Chuẩn hoá khoá định danh giống cleaners.normalize_id (IN HOA, bỏ khoảng trắng)."""
+    if value is None:
+        return ""
+    return "".join(str(value).upper().split())
+
+
 def read_raw_rows(path: str | Path, columns: Sequence[str]) -> List[Dict[str, str]]:
     """
     Đọc file CSV ở dạng RAW: trả về List[Dict] theo `columns`, giá trị giữ
@@ -41,17 +48,27 @@ def read_raw_rows(path: str | Path, columns: Sequence[str]) -> List[Dict[str, st
         with file_path.open("r", encoding="utf-8-sig", newline="") as handle:
             reader = csv.reader(handle)
             try:
-                next(reader)  # bỏ dòng header (đọc theo vị trí cột chuẩn)
+                header = next(reader)
             except StopIteration:
                 return []
-            # File lạ header: vẫn đọc theo vị trí cột chuẩn (giống cleaners.load_csv).
+            header_map = {
+                " ".join(str(cell).split()).lower(): idx for idx, cell in enumerate(header)
+            }
+            use_header = all(col.lower() in header_map for col in columns)
+            col_indices = [
+                header_map[col.lower()] if use_header else idx
+                for idx, col in enumerate(columns)
+            ]
             for raw in reader:
                 if not any(cell.strip() for cell in raw):
                     continue
                 rows.append(
-                    {column: (raw[index] if index < len(raw) else "") for index, column in enumerate(columns)}
+                    {
+                        column: (raw[col_idx] if col_idx < len(raw) else "")
+                        for column, col_idx in zip(columns, col_indices)
+                    }
                 )
-    except (OSError, UnicodeDecodeError):
+    except (OSError, UnicodeDecodeError, csv.Error):
         return []
     return rows
 
@@ -86,12 +103,12 @@ def next_sequential_id(rows: Sequence[Dict[str, Any]], id_field: str, prefix: st
     """
     highest = 0
     for row in rows:
-        raw = str(row.get(id_field, "")).strip()
-        if not raw.upper().startswith(prefix.upper()):
+        raw = _norm_key(row.get(id_field, ""))
+        if not raw.startswith(prefix.upper()):
             continue
-        digits = "".join(char for char in raw[len(prefix):] if char.isdigit())
-        if digits:
-            highest = max(highest, int(digits))
+        suffix = raw[len(prefix):]
+        if suffix.isdigit():
+            highest = max(highest, int(suffix))
     return f"{prefix}{highest + 1:0{width}d}"
 
 
@@ -104,9 +121,9 @@ def insert_row(path: str | Path, columns: Sequence[str], row: Dict[str, Any]) ->
     để khoá định danh luôn duy nhất ở tầng dữ liệu.
     """
     id_field = columns[0]
-    new_id = str(row.get(id_field, "")).strip().upper()
+    new_id = _norm_key(row.get(id_field, ""))
     rows = read_raw_rows(path, columns)
-    if new_id and any(str(existing.get(id_field, "")).strip().upper() == new_id for existing in rows):
+    if new_id and any(_norm_key(existing.get(id_field, "")) == new_id for existing in rows):
         raise ValueError(f"'{new_id}' đã tồn tại trong {Path(path).name} — không thể thêm bản ghi trùng mã.")
     rows.append({column: str(row.get(column, "")) for column in columns})
     write_rows(path, columns, rows)
@@ -125,10 +142,10 @@ def update_row(
     Trả về True nếu tìm thấy và cập nhật, False nếu không có dòng nào khớp.
     """
     rows = read_raw_rows(path, columns)
-    target = str(key_value).strip().upper()
+    target = _norm_key(key_value)
     found = False
     for index, row in enumerate(rows):
-        if str(row.get(key_field, "")).strip().upper() == target:
+        if _norm_key(row.get(key_field, "")) == target:
             rows[index] = {column: str(new_values.get(column, row.get(column, ""))) for column in columns}
             found = True
     if found:
@@ -139,8 +156,8 @@ def update_row(
 def delete_row(path: str | Path, columns: Sequence[str], key_field: str, key_value: str) -> int:
     """Xoá mọi dòng có `key_field == key_value`; trả về số dòng đã xoá."""
     rows = read_raw_rows(path, columns)
-    target = str(key_value).strip().upper()
-    kept = [row for row in rows if str(row.get(key_field, "")).strip().upper() != target]
+    target = _norm_key(key_value)
+    kept = [row for row in rows if _norm_key(row.get(key_field, "")) != target]
     removed = len(rows) - len(kept)
     if removed:
         write_rows(path, columns, kept)
@@ -159,14 +176,14 @@ def delete_rows(
     Ghi file đúng một lần để bulk delete vẫn atomic và không làm xáo trộn các
     dòng không liên quan.
     """
-    targets = {str(value).strip().upper() for value in key_values if str(value).strip()}
+    targets = {_norm_key(value) for value in key_values if _norm_key(value)}
     if not targets:
         return 0
 
     rows = read_raw_rows(path, columns)
     kept = [
         row for row in rows
-        if str(row.get(key_field, "")).strip().upper() not in targets
+        if _norm_key(row.get(key_field, "")) not in targets
     ]
     removed = len(rows) - len(kept)
     if removed:
@@ -176,11 +193,11 @@ def delete_rows(
 
 def find_rows(path: str | Path, columns: Sequence[str], key_field: str, key_value: str) -> List[Dict[str, str]]:
     """Các dòng RAW khớp khoá (dùng để hiển thị/nhân bản dữ liệu khi edit)."""
-    target = str(key_value).strip().upper()
+    target = _norm_key(key_value)
     return [
         row
         for row in read_raw_rows(path, columns)
-        if str(row.get(key_field, "")).strip().upper() == target
+        if _norm_key(row.get(key_field, "")) == target
     ]
 
 
@@ -197,7 +214,7 @@ def count_rows(path: str | Path) -> int:
             except StopIteration:
                 return 0
             return sum(1 for raw in reader if any(cell.strip() for cell in raw))
-    except (OSError, UnicodeDecodeError):
+    except (OSError, UnicodeDecodeError, csv.Error):
         return 0
 
 
@@ -213,7 +230,7 @@ def file_columns(path: str | Path) -> List[str]:
                 return [cell.strip() for cell in next(reader)]
             except StopIteration:
                 return []
-    except (OSError, UnicodeDecodeError):
+    except (OSError, UnicodeDecodeError, csv.Error):
         return []
 
 
@@ -223,3 +240,53 @@ def last_modified(path: str | Path) -> Optional[float]:
     if not file_path.exists():
         return None
     return file_path.stat().st_mtime
+
+
+def sync_device_status(
+    devices_csv: str | Path,
+    records_csv: str | Path,
+    device_Columns: Sequence[str],
+    record_columns: Sequence[str],
+    device_ids: Sequence[str],
+) -> None:
+    """
+    Đồng bộ trạng thái thiết bị trong `devices.csv` khi tạo/sửa/xóa phiếu mượn.
+
+    Quy tắc:
+      - Nếu thiết bị có phiếu active status == 'lost' -> 'lost'
+      - Nếu thiết bị có phiếu active status in {'borrowing', 'overdue'} -> 'borrowed'
+      - Nếu không còn phiếu active nào và danh mục đang là 'borrowed' -> 'available'
+        (giữ nguyên 'maintenance' nếu đang bảo trì).
+    """
+    targets = {_norm_key(did) for did in device_ids if _norm_key(did)}
+    if not targets:
+        return
+    devices = read_raw_rows(devices_csv, device_Columns)
+    records = read_raw_rows(records_csv, record_columns)
+    active_by_device: Dict[str, set[str]] = {}
+    for rec in records:
+        did = _norm_key(rec.get("device_id", ""))
+        st_code = str(rec.get("status", "")).strip().lower()
+        if did in targets and st_code in ("borrowing", "overdue", "lost"):
+            active_by_device.setdefault(did, set()).add(st_code)
+
+    changed = False
+    for dev in devices:
+        did = _norm_key(dev.get("device_id", ""))
+        if did not in targets:
+            continue
+        statuses = active_by_device.get(did, set())
+        cur = str(dev.get("status", "")).strip().lower()
+        if "lost" in statuses:
+            new_st = "lost"
+        elif statuses & {"borrowing", "overdue"}:
+            new_st = "borrowed"
+        elif cur == "borrowed":
+            new_st = "available"
+        else:
+            new_st = cur
+        if new_st and new_st != cur:
+            dev["status"] = new_st
+            changed = True
+    if changed:
+        write_rows(devices_csv, device_Columns, devices)

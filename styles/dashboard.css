@@ -78,6 +78,7 @@ svg { max-width: 100%; }
 .kpi-grid .kpi-card:nth-child(2) { animation-delay: 60ms; }
 .kpi-grid .kpi-card:nth-child(3) { animation-delay: 120ms; }
 .kpi-grid .kpi-card:nth-child(4) { animation-delay: 180ms; }
+.kpi-grid .kpi-card:nth-child(5) { animation-delay: 240ms; }
 
 @media (prefers-reduced-motion: reduce) {
   .kpi-grid .kpi-card { animation: none; }
@@ -132,6 +133,17 @@ svg { max-width: 100%; }
   padding: var(--spacing-xl) !important;
 }
 
+/* Các wrapper bố cục dùng key= (border=False) không được nhận viền/nền card lồng nhau. */
+.st-key-ov_equal_charts > [data-testid="stVerticalBlock"],
+.st-key-alerts_equal_row > [data-testid="stVerticalBlock"],
+[class*="st-key-pagination_"] > [data-testid="stVerticalBlock"],
+.st-key-state_action > [data-testid="stVerticalBlock"] {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
 [data-testid="stVerticalBlock"] { gap: var(--spacing-md); }
 
 /* Khoảng cách giữa các CỘT (st.columns): Streamlit 1.63 mặc định chỉ ~8px
@@ -148,11 +160,11 @@ svg { max-width: 100%; }
 
 /* Toolbar bộ lọc: các cột tự xuống dòng khi hẹp, nhưng vẫn đủ chỗ để nút
    "Đặt lại" nằm cùng hàng trên desktop (min-width nhỏ hơn để không đẩy xuống). */
-[class*="_filter_row"] [data-testid="stHorizontalBlock"] {
+[class*="filter_row"] [data-testid="stHorizontalBlock"] {
   flex-wrap: wrap;
   row-gap: var(--spacing-md);
 }
-[class*="_filter_row"] [data-testid="stColumn"] { min-width: 148px; }
+[class*="filter_row"] [data-testid="stColumn"] { min-width: 148px; }
 
 /* ---------- 03. APP TOPBAR ---------- */
 .app-topbar {
@@ -189,6 +201,7 @@ svg { max-width: 100%; }
 .app-topbar .topbar-right { display: flex; align-items: center; gap: var(--spacing-md); }
 
 .icon-btn {
+  position: relative;
   width: 34px;
   height: 34px;
   border-radius: var(--radius-md);
@@ -199,6 +212,30 @@ svg { max-width: 100%; }
   align-items: center;
   justify-content: center;
   flex: 0 0 34px;
+}
+
+.icon-btn.has-alerts {
+  border-color: var(--st-danger-border);
+  background: var(--st-danger-bg);
+  color: var(--st-danger-text);
+}
+
+.bell-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--st-danger-base);
+  color: var(--color-surface);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px var(--color-surface);
 }
 
 .user-chip {
@@ -372,7 +409,7 @@ svg { max-width: 100%; }
 /* ---------- 06. KPI CARDS ---------- */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--spacing-lg);
   margin: 0 0 var(--spacing-md);
 }
@@ -1358,6 +1395,8 @@ svg { max-width: 100%; }
 }
 
 .timeline-item.returned .alert-marker { background: var(--color-border); }
+.timeline-item.overdue .alert-marker { background: var(--st-warning-dot); }
+.timeline-item.lost .alert-marker { background: var(--st-danger-dot); }
 
 .timeline-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 

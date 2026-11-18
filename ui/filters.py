@@ -68,18 +68,20 @@ def _active_conditions() -> int:
             active += 1
     if str(st.session_state.get("filter_search", "")).strip():
         active += 1
-    if st.session_state.get("filter_range") and str(st.session_state.get("filter_time", "")) == "Tùy chỉnh":
-        active += 1
     return active
 
 
-def render_filter_bar(devices: List[Dict[str, Any]]) -> FilterState:
+def render_filter_bar(
+    devices: List[Dict[str, Any]],
+    today: Optional[date] = None,
+) -> FilterState:
     """
     Render toolbar bộ lọc gọn trên một hàng (desktop) và trả về FilterState.
 
     Ở màn hình hẹp, st.columns tự động xếp dọc nên không bị tràn ngang.
     """
     state = FilterState()
+    ref_today = today or date.today()
 
     # `key` sinh class `.st-key-filter_row` để CSS cho phép các cột tự xuống
     # dòng trên màn hình hẹp (không tràn ngang, không chữ bị cắt).
@@ -119,9 +121,9 @@ def render_filter_bar(devices: List[Dict[str, Any]]) -> FilterState:
         if state.time_filter == "Tùy chỉnh":
             picked = st.date_input(
                 "Khoảng thời gian",
-                value=(date.today() - timedelta(days=DEFAULT_RANGE_DAYS), date.today()),
+                value=(ref_today - timedelta(days=DEFAULT_RANGE_DAYS), ref_today),
                 min_value=date(2000, 1, 1),
-                max_value=date.today(),
+                max_value=max(ref_today, date.today()),
                 key="filter_range",
             )
             if isinstance(picked, (tuple, list)) and len(picked) == 2:

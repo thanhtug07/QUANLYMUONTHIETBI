@@ -112,7 +112,7 @@ def render(analysis: Dict[str, Any]) -> None:
     # ------------------------------------------------------------------
     # Biểu đồ C — chỉ dựng khi dữ liệu thật sự có mốc thời gian
     # ------------------------------------------------------------------
-    monthly = stat_mod.borrows_by_month(records)
+    monthly = stats.get("borrows_by_month") or stat_mod.borrows_by_month(records)
     with st.container(border=True):
         card_header(
             "Lượt mượn theo thời gian",
@@ -152,6 +152,16 @@ def render(analysis: Dict[str, Any]) -> None:
     # Gọn trong expander vì nội dung dài mà số liệu đã có ở các chart phía trên.
     # ------------------------------------------------------------------
     report_text = str(analysis.get("report_text", "")).strip()
+    if report_text:
+        st.download_button(
+            "Tải báo cáo tổng hợp (.txt)",
+            data=("\ufeff" + report_text).encode("utf-8"),
+            file_name="report.txt",
+            mime="text/plain",
+            key="report_download_txt",
+            width="content",
+            help="Tải nội dung báo cáo 8 phần dạng văn bản (.txt).",
+        )
     with st.expander("Báo cáo tổng hợp (văn bản)", expanded=False):
         if report_text:
             st.code(report_text, language=None)

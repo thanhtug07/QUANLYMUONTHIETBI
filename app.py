@@ -66,12 +66,20 @@ def render_app() -> None:
         page = DEFAULT_PAGE
         st.session_state[PAGE_KEY] = page
 
+    stats = analysis.get("stats") or {}
+    alert_count = (
+        int(stats.get("overdue_count", 0) or 0)
+        + int(stats.get("lost_count", 0) or 0)
+        + len(analysis.get("errors", []))
+    )
+
     render_sidebar(active=page, counts=counts, data_ok=not has_error(analysis))
-    render_topbar(context=page_label(page))
+    render_topbar(context=page_label(page), alert_count=alert_count)
 
     if has_error(analysis):
-        render_data_error(analysis)
-        st.stop()
+        if page != "csv":
+            render_data_error(analysis)
+            st.stop()
 
     RENDERERS[page](analysis)
 

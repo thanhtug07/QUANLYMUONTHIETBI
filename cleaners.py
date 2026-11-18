@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import csv
+import functools
+import unicodedata
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -94,8 +96,11 @@ def normalize_id(value: Any) -> str:
 
 
 def _alias_key(value: Any) -> str:
-    """Chuẩn hoá trạng thái để tra trong bảng alias: thường + '_' thay khoảng trắng."""
-    return normalize_text(value).lower().replace(" ", "_")
+    """Chuẩn hoá trạng thái để tra trong bảng alias: bỏ dấu tiếng Việt + thường + '_' thay khoảng trắng."""
+    raw = normalize_text(value).lower().replace("đ", "d")
+    decomposed = unicodedata.normalize("NFD", raw)
+    stripped = "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
+    return stripped.replace(" ", "_")
 
 
 def normalize_status(value: Any, allowed: frozenset[str], aliases: Dict[str, str]) -> str:
@@ -119,6 +124,23 @@ def normalize_status(value: Any, allowed: frozenset[str], aliases: Dict[str, str
     return lowered
 
 
+@functools.lru_cache(maxsize=4096)
+def _parse_date_str(text: str) -> Optional[date]:
+    if not text:
+        return None
+    if len(text) == 10 and text[4] == "-" and text[7] == "-":
+        try:
+            return date.fromisoformat(text)
+        except ValueError:
+            pass
+    for fmt in DATE_FORMATS:
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
 def parse_date(value: Any) -> Optional[date]:
     """
     Parse chuỗi ngày theo nhiều định dạng trong DATE_FORMATS.
@@ -126,15 +148,12 @@ def parse_date(value: Any) -> Optional[date]:
     Trả về `date` nếu hợp lệ, None nếu ô rỗng hoặc sai định dạng
     (None sẽ được validators báo lỗi thay vì làm chương trình crash).
     """
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
     text = normalize_text(value)
     if not text:
         return None
-    for fmt in DATE_FORMATS:
-        try:
-            return datetime.strptime(text, fmt).date()
-        except ValueError:
-            continue
-    return None
+    return _parse_date_str(text)
 
 
 def to_iso(value: Any) -> str:
@@ -193,21 +212,30 @@ def load_csv(path: str | Path, columns: List[str]) -> List[Dict[str, str]]:
         with file_path.open("r", encoding="utf-8-sig", newline="") as handle:
             reader = csv.reader(handle)
             try:
-                next(reader)  # bỏ dòng header
+                header = next(reader)  # đọc dòng header
             except StopIteration:
                 return []
+
+            header_map = {
+                normalize_text(cell).lower(): idx for idx, cell in enumerate(header)
+            }
+            use_header = all(col.lower() in header_map for col in columns)
+            col_indices = [
+                header_map[col.lower()] if use_header else idx
+                for idx, col in enumerate(columns)
+            ]
 
             rows: List[Dict[str, str]] = []
             for row_no, raw in enumerate(reader, start=2):   # dòng 1 là header
                 if not any(cell.strip() for cell in raw):    # bỏ dòng trống
                     continue
                 row = {
-                    col: (raw[idx] if idx < len(raw) else "")
-                    for idx, col in enumerate(columns)
+                    col: (raw[col_idx] if col_idx < len(raw) else "")
+                    for col, col_idx in zip(columns, col_indices)
                 }
                 row["_row_no"] = row_no   # số dòng THỰC trong file -> báo lỗi đúng dòng
                 rows.append(row)
-    except (OSError, UnicodeDecodeError):
+    except (OSError, UnicodeDecodeError, csv.Error):
         return []
     return rows
 
@@ -229,7 +257,7 @@ def missing_columns(path: str | Path, columns: List[str]) -> List[str]:
                 header = {normalize_text(cell).lower() for cell in next(reader)}
             except StopIteration:
                 return []
-    except (OSError, UnicodeDecodeError):
+    except (OSError, UnicodeDecodeError, csv.Error):
         return []
     expected = {column.lower() for column in columns}
     return sorted(expected - header)   # hiệu tập hợp -> cột bị thiếu

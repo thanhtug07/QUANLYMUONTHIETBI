@@ -117,6 +117,8 @@ def render_pagination(
 def _goto_page(page_key: str, page: int) -> None:
     """Callback nút Prev/Next — kẹp trang trong [1, tổng số trang]."""
     st.session_state[page_key] = max(1, int(page))
+    st.session_state.pop("borrow_select_all_page", None)
+    st.session_state.pop("dialog", None)
 
 
 def table_height(row_count: int, maximum: int = MAX_TABLE_HEIGHT) -> int:

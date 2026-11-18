@@ -91,8 +91,9 @@ def render_no_results(
 def render_error_state(
     message: str,
     on_retry: Optional[Callable[[], None]] = None,
+    on_open_csv: Optional[Callable[[], None]] = None,
 ) -> None:
-    """Error card khi pipeline không thể đọc/parse dữ liệu (kèm CTA thử lại)."""
+    """Error card khi pipeline không thể đọc/parse dữ liệu (kèm CTA thử lại / mở trang CSV)."""
     st.markdown(
         f'<div class="error-card" role="alert">'
         f'<div class="error-icon">{icon("alert", 20)}</div>'
@@ -104,12 +105,33 @@ def render_error_state(
         f"</div></div>",
         unsafe_allow_html=True,
     )
-    _action_button(
-        "Thử lại",
-        "state_retry",
-        on_retry,
-        "Đọc lại dữ liệu CSV từ đầu.",
-    )
+    if on_retry is not None and on_open_csv is not None:
+        with st.container(key=ACTION_KEY):
+            col1, col2 = st.columns(2, gap="small")
+            with col1:
+                st.button(
+                    "Thử lại",
+                    key="state_retry",
+                    on_click=on_retry,
+                    type="primary",
+                    width="stretch",
+                    help="Đọc lại dữ liệu CSV từ đầu.",
+                )
+            with col2:
+                st.button(
+                    "Mở trang Dữ liệu CSV",
+                    key="state_open_csv",
+                    on_click=on_open_csv,
+                    width="stretch",
+                    help="Chuyển đến trang Dữ liệu CSV để tải file hoặc thêm dữ liệu mẫu.",
+                )
+    else:
+        _action_button(
+            "Thử lại",
+            "state_retry",
+            on_retry,
+            "Đọc lại dữ liệu CSV từ đầu.",
+        )
 
 
 def render_hint(text: str, icon_name: str = "filter") -> None:

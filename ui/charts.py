@@ -19,7 +19,7 @@ import streamlit as st
 
 from styles import tokens
 from ui.states import render_empty_state
-from utils.helpers import esc, month_label
+from utils.helpers import esc, month_label, status_label
 
 #: Chiều cao biểu đồ (gọn để vừa viewport, vẫn đủ đọc số liệu).
 CHART_HEIGHT = 240
@@ -255,7 +255,10 @@ def render_trend_area(
 
     total_borrows = int(stats.get("total_borrows", 0) or 0)
     currently = int(stats.get("currently_borrowed", 0) or 0)
-    returned = max(total_borrows - currently, 0)
+    if "returned_count" in stats and stats.get("returned_count") is not None:
+        returned = int(stats.get("returned_count", 0) or 0)
+    else:
+        returned = max(total_borrows - currently, 0)
     st.markdown(
         f'<div class="trend-summary">'
         f'<div class="trend-cell"><span>Tổng lượt mượn</span><strong>{total_borrows}</strong></div>'
@@ -285,7 +288,7 @@ def render_weekday_bars(rows: Sequence[Tuple[str, int]]) -> None:
         return
 
     peak = max(counts)
-    peak_label = next(label for label, count in rows if int(count) == peak)
+    peak_label = ", ".join(label for label, count in rows if int(count) == peak)
     frame = pd.DataFrame(
         {"Ngày": [label for label, _ in rows], "Số lượt": counts}
     )
@@ -335,6 +338,12 @@ def render_rate_gauge(rate: float, caption: str) -> None:
         value = max(0.0, min(100.0, float(rate)))
     except (TypeError, ValueError):
         value = 0.0
+    if value >= 80.0:
+        fill_color = tokens.STATUS["success"]["base"]
+    elif value >= 50.0:
+        fill_color = tokens.STATUS["warning"]["base"]
+    else:
+        fill_color = tokens.STATUS["danger"]["base"]
     track = (
         alt.Chart(pd.DataFrame({"frac": [1.0]}))
         .mark_arc(innerRadius=58, outerRadius=86, cornerRadius=4,
@@ -344,7 +353,7 @@ def render_rate_gauge(rate: float, caption: str) -> None:
     fill = (
         alt.Chart(pd.DataFrame({"frac": [value / 100.0]}))
         .mark_arc(innerRadius=58, outerRadius=86, cornerRadius=4,
-                  color=tokens.STATUS["success"]["base"])
+                  color=fill_color)
         .encode(theta=alt.Theta("frac:Q", scale=alt.Scale(domain=[0, 1], range=[0, 3.14159])))
     )
     number = (
@@ -358,9 +367,8 @@ def render_rate_gauge(rate: float, caption: str) -> None:
         .configure_view(stroke=None, fill="transparent")
         .configure(font=CHART_FONT)
     )
-    st.markdown('<div class="gauge-wrap">', unsafe_allow_html=True)
     st.altair_chart(chart, width="stretch")
-    st.markdown(f'<div class="gauge-caption">{esc(caption)}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="gauge-caption">{esc(caption)}</div>', unsafe_allow_html=True)
 
 
 def render_activity_timeline(
@@ -410,9 +418,9 @@ def render_activity_timeline(
             meta_bits.append(f"Mượn {month_label_day(record.get('borrow_date'))}")
         if record.get("due_date"):
             meta_bits.append(f"Hạn trả {month_label_day(record.get('due_date'))}")
-        status_label_text = "Đã trả" if returned else "Đang mượn"
+        status_label_text = status_label(status) if status else ("Đã trả" if returned else "Đang mượn")
 
-        item_class = "timeline-item returned" if returned else "timeline-item"
+        item_class = f"timeline-item {status}" if status in ("returned", "overdue", "lost", "borrowing") else "timeline-item"
         items.append(
             f'<li class="{item_class}">'
             f'<span class="alert-marker"></span>'

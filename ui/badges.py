@@ -72,7 +72,7 @@ def render_status_chips(counts: Dict[str, int], total_label: str = "") -> None:
             f'<span class="stat-chip-label">{esc(status)}</span>'
             f"<strong>{int(count)}</strong></span>"
         )
-    total_html = f'<span class="stat-chip total"><span class="stat-chip-label">Tổng</span><strong>{total_label}</strong></span>' if total_label else ""
+    total_html = f'<span class="stat-chip total"><span class="stat-chip-label">Tổng</span><strong>{esc(total_label)}</strong></span>' if total_label else ""
     st.markdown(f'<div class="stat-chip-row">{"".join(chips)}{total_html}</div>', unsafe_allow_html=True)
 
 

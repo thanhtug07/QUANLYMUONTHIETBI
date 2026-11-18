@@ -44,12 +44,14 @@ def detail_dialog(
     rows: Sequence[Tuple[str, str]],
     badges: Sequence[str] = (),
     note: str = "",
+    extra_html: str = "",
 ) -> None:
     """
     Panel chi tiết một bản ghi (dạng nhãn — giá trị).
 
     `rows` chỉ chứa field THẬT của bản ghi; `note` dùng cho cảnh báo nghiệp vụ
-    (ví dụ số ngày quá hạn do validators tính).
+    (ví dụ số ngày quá hạn do validators tính); `extra_html` hiển thị lịch sử
+    mượn liên quan (nếu có).
     """
     badge_html = "".join(status_badge(status) for status in badges if status)
     note_html = f'<div class="detail-note">{esc(note)}</div>' if note else ""
@@ -63,7 +65,10 @@ def detail_dialog(
     def _wrap() -> None:
         if badge_html:
             st.markdown(f'<div class="detail-badges">{badge_html}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="detail-table">{row_html}</div>{note_html}', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="detail-table">{row_html}</div>{note_html}{extra_html}',
+            unsafe_allow_html=True,
+        )
         if st.button("Đóng", key="dlg_detail_close", width="stretch"):
             close_dialog()
 

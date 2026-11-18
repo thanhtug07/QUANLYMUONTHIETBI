@@ -23,6 +23,7 @@ from pages.common import (
     borrower_detail_rows,
     borrower_rows,
     count_by,
+    recent_history_html,
     render_first_run_guide,
 )
 from ui.app_shell import clear_data_cache
@@ -45,6 +46,7 @@ from ui.tables import (
     render_row_action_bar,
     render_table_export,
 )
+from utils.helpers import esc
 
 #: Cột hiển thị của bảng người mượn.
 TABLE_COLUMNS: List[str] = ["Mã sinh viên", "Họ tên", "Lớp", "Điện thoại", "Lượt mượn", "Đang mượn"]
@@ -75,6 +77,7 @@ def _reset_filters() -> None:
     for key in FILTER_KEYS:
         st.session_state.pop(key, None)
     st.session_state.pop(PAGE_KEY, None)
+    st.session_state.pop("dialog", None)
     st.rerun()
 
 
@@ -128,9 +131,11 @@ def _render_toolbar(borrowers: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def _active_counts(records: List[Dict[str, Any]]) -> Dict[str, int]:
-    """Số phiếu đang mượn theo người mượn (status borrowing, đúng như dữ liệu)."""
+    """Số phiếu đang mượn theo người mượn (status borrowing hoặc overdue — chưa trả)."""
     active = [
-        record for record in records if str(record.get("status", "")).strip() == "borrowing"
+        record
+        for record in records
+        if str(record.get("status", "")).strip() in ("borrowing", "overdue")
     ]
     return count_by(active, "borrower_id")
 
@@ -230,7 +235,7 @@ def _borrower_form(analysis: Dict[str, Any], borrower: Optional[Dict[str, Any]])
         return
 
     candidate = {
-        "borrower_id": str(borrower_id).strip().upper(),
+        "borrower_id": "".join(str(borrower_id).upper().split()),
         "name": str(name).strip(),
         "class_name": str(class_name).strip(),
         "phone": normalize_phone(phone),
@@ -261,7 +266,15 @@ def _dialog_view(payload: Dict[str, Any], analysis: Dict[str, Any]) -> None:
         )
         return
     records = analysis.get("records", [])
+    stats = analysis.get("stats") or {}
     borrower_id = str(borrower.get("borrower_id", "")).strip()
+    history = recent_history_html(
+        records,
+        stats.get("devices_by_id") or {},
+        stats.get("borrowers_by_id") or {},
+        "borrower_id",
+        borrower_id,
+    )
     detail_dialog(
         f"Người mượn {borrower_id}",
         borrower_detail_rows(
@@ -269,6 +282,7 @@ def _dialog_view(payload: Dict[str, Any], analysis: Dict[str, Any]) -> None:
             count_by(records, "borrower_id").get(borrower_id, 0),
             _active_counts(records).get(borrower_id, 0),
         ),
+        extra_html=history,
     )
 
 
@@ -436,8 +450,8 @@ def render(analysis: Dict[str, Any]) -> None:
             selected_row = selected_rows[0]
             borrower_id = selected_row["Mã sinh viên"]
             render_row_action_bar(
-                f'Đang chọn <strong>{borrower_id}</strong> · {selected_row["Họ tên"]} · '
-                f'{selected_row["Lớp"]}',
+                f'Đang chọn <strong>{esc(borrower_id)}</strong> · {esc(selected_row["Họ tên"])} · '
+                f'{esc(selected_row["Lớp"])}',
                 [
                     ("Xem", "borrower_action_view", lambda: open_dialog("view", borrower_id=borrower_id), ""),
                     ("Sửa", "borrower_action_edit", lambda: open_dialog("edit", borrower_id=borrower_id), ""),

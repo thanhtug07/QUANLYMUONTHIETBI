@@ -82,7 +82,9 @@ def retry_load() -> None:
 def render_data_error(analysis: Dict[str, Any]) -> None:
     """Hiển thị error state của pipeline (không bao giờ lộ traceback)."""
     render_error_state(
-        str(analysis.get("error", "Không tải được dữ liệu.")), on_retry=retry_load
+        str(analysis.get("error", "Không tải được dữ liệu.")),
+        on_retry=retry_load,
+        on_open_csv=lambda: goto_page("csv"),
     )
 
 
@@ -95,6 +97,9 @@ def goto_page(slug: str) -> None:
     """
     st.session_state[PAGE_KEY] = slug
     st.session_state.pop(SELECTED_KEY, None)
+    st.session_state.pop("dialog", None)
+    st.session_state.pop("borrow_selected_id", None)
+    st.session_state.pop("borrow_select_all_page", None)
     st.query_params[QUERY_KEY] = slug
 
 

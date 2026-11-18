@@ -20,6 +20,7 @@ import cleaners
 import reports
 import statistics
 import validators
+from utils.helpers import reference_today
 
 # Console Windows mặc định có thể dùng cp1252 -> in tiếng Việt sẽ lỗi
 # UnicodeEncodeError. Chuyển stdout/stderr sang UTF-8 cho CLI chạy được trên
@@ -99,7 +100,6 @@ def run_pipeline(
         report_text : str        nội dung báo cáo (rỗng nếu dừng sớm)
         counts      : Dict       số liệu tổng hợp cho UI (hợp lệ / lỗi)
     """
-    today = today or date.today()
     devices_csv = devices_csv or DEVICES_CSV
     borrowers_csv = borrowers_csv or BORROWERS_CSV
     records_csv = records_csv or RECORDS_CSV
@@ -107,7 +107,7 @@ def run_pipeline(
     result: Dict[str, Any] = {
         "error": None, "devices": [], "borrowers": [], "records": [],
         "errors": [], "warnings": [], "stats": {}, "report_text": "",
-        "counts": {},
+        "counts": {}, "today": today or date.today(),
     }
 
     # 1) Kiểm tra cấu trúc file (schema) trước khi đọc
@@ -133,12 +133,13 @@ def run_pipeline(
     borrowers, bor_errors = cleaners.clean_borrowers(raw_borrowers)
     records, rec_errors = cleaners.clean_borrow_records(raw_records)
 
-    all_errors: List[Dict[str, Any]] = list(dev_errors) + list(bor_errors) + list(rec_errors)
+    clean_errors: List[Dict[str, Any]] = list(dev_errors) + list(bor_errors) + list(rec_errors)
 
     # 3) Trạng thái dừng sớm: rỗng hoặc không còn bản ghi hợp lệ
     if not (devices or borrowers or records):
         result["error"] = MSG_NO_DATA
-        result["counts"] = {"valid": 0, "invalid": len(all_errors)}
+        result["errors"] = clean_errors
+        result["counts"] = {"valid": 0, "invalid": len(clean_errors)}
         return result
 
     valid_d = _valid_devices(devices)
@@ -146,19 +147,24 @@ def run_pipeline(
     valid_r = _valid_records(records)
     if not valid_r:
         result["error"] = MSG_NO_VALID
-        result["counts"] = {"valid": 0, "invalid": len(all_errors)}
+        result["devices"] = valid_d
+        result["borrowers"] = valid_b
+        result["errors"] = clean_errors
+        result["counts"] = {"valid": 0, "invalid": len(clean_errors)}
         return result
+
+    effective_today = reference_today(valid_r, today)
 
     # 4) Validation bằng SET (tham chiếu, trùng, quá hạn, thất thoát...)
     validation_errors, overdue_records, lost_devices = validators.validate_all(
-        valid_d, valid_b, valid_r, today
+        valid_d, valid_b, valid_r, effective_today
     )
-    all_errors = all_errors + list(validation_errors)
+    all_errors = clean_errors + list(validation_errors)
 
     # 5) Thống kê (Dictionary lookup/join, Top-N, tỷ lệ...)
     stats = statistics.compute_all(
         valid_d, valid_b, valid_r,
-        overdue_records=overdue_records, lost_devices=lost_devices, today=today,
+        overdue_records=overdue_records, lost_devices=lost_devices, today=effective_today,
     )
 
     # 6) Báo cáo (chỉ format từ stats — không tính lại số liệu)
@@ -173,7 +179,7 @@ def run_pipeline(
         warnings.append(
             f"[THẤT THOÁT] {len(lost_devices)} thiết bị nghi thất thoát: {sorted(lost_devices)}"
         )
-    report_text = reports.build_report_text(stats, all_errors, validation_errors)
+    report_text = reports.build_report_text(stats, clean_errors, validation_errors)
 
     result.update({
         "devices": valid_d,
@@ -184,6 +190,7 @@ def run_pipeline(
         "stats": stats,
         "report_text": report_text,
         "counts": {"valid": len(valid_r), "invalid": len(all_errors)},
+        "today": effective_today,
     })
     return result
 

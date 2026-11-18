@@ -13,7 +13,7 @@ nghiệp vụ, cũng không tạo mã/số liệu ngẫu nhiên.
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
 
 import statistics as stat_mod
@@ -22,7 +22,7 @@ import streamlit as st
 import data_store
 import main
 import validators
-from cleaners import RECORD_COLUMNS, parse_date
+from cleaners import DEVICE_COLUMNS, RECORD_COLUMNS, parse_date
 from pages.common import (
     RECORD_STATUS_CHOICES,
     RECORD_STATUS_FILTERS,
@@ -43,7 +43,7 @@ from ui.dialogs import (
     open_dialog,
     render_pending_dialog,
 )
-from ui.filters import TIME_OPTIONS
+from ui.filters import DEFAULT_RANGE_DAYS, TIME_OPTIONS
 from ui.forms import (
     display_label,
     form_section,
@@ -64,7 +64,7 @@ from ui.tables import (
     render_row_action_bar,
     render_table_export,
 )
-from utils.helpers import status_label, to_csv_date
+from utils.helpers import esc, reference_today, status_label, to_csv_date
 
 #: Cột hiển thị của bảng phiếu mượn (toàn bộ đều là field thật của CSV).
 TABLE_COLUMNS: List[str] = [
@@ -88,7 +88,7 @@ COLUMN_CONFIG: Dict[str, Any] = {
 }
 
 #: Khoá session_state của các widget bộ lọc (để "Đặt lại" hoạt động thật).
-FILTER_KEYS: List[str] = ["borrow_search", "borrow_status", "borrow_time"]
+FILTER_KEYS: List[str] = ["borrow_search", "borrow_status", "borrow_time", "borrow_range"]
 
 #: Khoá session_state của dòng đang chọn.
 SELECTED_KEY = "borrow_selected_id"
@@ -114,6 +114,7 @@ def _reset_filters() -> None:
     st.session_state.pop(PAGE_KEY, None)
     st.session_state.pop(SORT_KEY, None)
     st.session_state.pop(SELECT_ALL_KEY, None)
+    st.session_state.pop("dialog", None)
     st.rerun()
 
 
@@ -229,8 +230,12 @@ def _open_delete_all(all_rows: List[Dict[str, str]], is_filtered: bool) -> None:
     open_dialog("delete_all", borrow_ids=borrow_ids, is_filtered=bool(is_filtered))
 
 
-def _render_toolbar(devices: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _render_toolbar(devices: List[Dict[str, Any]], today: Optional[date] = None) -> Dict[str, Any]:
     """Toolbar lọc của bảng phiếu mượn: từ khoá / trạng thái / khoảng thời gian."""
+    ref_today = today or date.today()
+    custom_start: Optional[date] = None
+    custom_end: Optional[date] = None
+
     with st.container(border=True, key="borrow_filter_row"):
         pre_search = str(st.session_state.get("borrow_search", ""))
         pre_status = str(st.session_state.get("borrow_status", "Tất cả"))
@@ -266,7 +271,24 @@ def _render_toolbar(devices: List[Dict[str, Any]]) -> Dict[str, Any]:
                 help="Xoá toàn bộ điều kiện lọc và bỏ dòng đang chọn.",
             )
 
-    return {"search": search, "status": status, "time_mode": time_mode}
+        if time_mode == "Tùy chỉnh":
+            picked = st.date_input(
+                "Chọn khoảng ngày",
+                value=(ref_today - timedelta(days=DEFAULT_RANGE_DAYS), ref_today),
+                min_value=date(2000, 1, 1),
+                max_value=max(ref_today, date.today()),
+                key="borrow_range",
+            )
+            if isinstance(picked, (tuple, list)) and len(picked) == 2:
+                custom_start, custom_end = picked
+
+    return {
+        "search": search,
+        "status": status,
+        "time_mode": time_mode,
+        "custom_start": custom_start,
+        "custom_end": custom_end,
+    }
 
 
 # ----------------------------------------------------------------------
@@ -288,8 +310,19 @@ def _record_form(analysis: Dict[str, Any], record: Optional[Dict[str, Any]]) -> 
     records: List[Dict[str, Any]] = analysis.get("records", [])
     editing = record is not None
 
-    device_options = id_options(devices, "device_id", ("device_name", "category"))
-    borrower_options = id_options(borrowers, "borrower_id", ("name", "class_name"))
+    known_device_ids = {str(d.get("device_id", "")).strip() for d in devices if d.get("device_id")}
+    known_borrower_ids = {str(b.get("borrower_id", "")).strip() for b in borrowers if b.get("borrower_id")}
+    cur_device_id = str(record.get("device_id", "")).strip() if editing and record else ""
+    cur_borrower_id = str(record.get("borrower_id", "")).strip() if editing and record else ""
+    unknown_dev = cur_device_id if (editing and cur_device_id and cur_device_id not in known_device_ids) else ""
+    unknown_bor = cur_borrower_id if (editing and cur_borrower_id and cur_borrower_id not in known_borrower_ids) else ""
+
+    device_options = id_options(
+        devices, "device_id", ("device_name", "category"), unknown_id=unknown_dev
+    )
+    borrower_options = id_options(
+        borrowers, "borrower_id", ("name", "class_name"), unknown_id=unknown_bor
+    )
 
     # Không thể tạo phiếu nếu danh mục thiếu: báo rõ thay vì render form rỗng.
     if not device_options or not borrower_options:
@@ -316,7 +349,7 @@ def _record_form(analysis: Dict[str, Any], record: Optional[Dict[str, Any]]) -> 
         due_default = parse_date(record.get("due_date"))
         return_default = parse_date(record.get("return_date"))
     else:
-        borrow_default = date.today()
+        borrow_default = analysis.get("today") or date.today()
 
     with st.form("borrow_record_form"):
         form_section("Thông tin phiếu", "Mã phiếu được gợi ý từ dữ liệu hiện có, có thể sửa.")
@@ -333,16 +366,14 @@ def _record_form(analysis: Dict[str, Any], record: Optional[Dict[str, Any]]) -> 
             "Thiết bị",
             options=[value for value, _ in device_options],
             format_func=lambda value: display_label(device_options, value),
-            index=option_index(device_options, str(record.get("device_id", "")) if editing else ""),
+            index=option_index(device_options, cur_device_id),
             key="borrow_form_device",
         )
         borrower_id = first_row[2].selectbox(
             "Người mượn",
             options=[value for value, _ in borrower_options],
             format_func=lambda value: display_label(borrower_options, value),
-            index=option_index(
-                borrower_options, str(record.get("borrower_id", "")) if editing else ""
-            ),
+            index=option_index(borrower_options, cur_borrower_id),
             key="borrow_form_borrower",
         )
 
@@ -374,7 +405,7 @@ def _record_form(analysis: Dict[str, Any], record: Optional[Dict[str, Any]]) -> 
         return
 
     candidate = {
-        "borrow_id": str(borrow_id).strip().upper(),
+        "borrow_id": "".join(str(borrow_id).upper().split()),
         "borrower_id": str(borrower_id).strip(),
         "device_id": str(device_id).strip(),
         "borrow_date": borrow_date.isoformat() if borrow_date else "",
@@ -398,6 +429,10 @@ def _record_form(analysis: Dict[str, Any], record: Optional[Dict[str, Any]]) -> 
         "due_date": to_csv_date(candidate["due_date"]),
         "return_date": to_csv_date(candidate["return_date"]),
     }
+    affected_devices = [row["device_id"]]
+    if editing and cur_device_id and cur_device_id != row["device_id"]:
+        affected_devices.append(cur_device_id)
+
     if editing:
         data_store.update_row(
             main.RECORDS_CSV, RECORD_COLUMNS, "borrow_id", row["borrow_id"], row
@@ -406,6 +441,9 @@ def _record_form(analysis: Dict[str, Any], record: Optional[Dict[str, Any]]) -> 
     else:
         data_store.insert_row(main.RECORDS_CSV, RECORD_COLUMNS, row)
         set_flash(f"Đã tạo phiếu mượn {row['borrow_id']}.")
+    data_store.sync_device_status(
+        main.DEVICES_CSV, main.RECORDS_CSV, DEVICE_COLUMNS, RECORD_COLUMNS, affected_devices
+    )
     clear_data_cache()
     close_dialog()
 
@@ -414,21 +452,23 @@ def _record_form(analysis: Dict[str, Any], record: Optional[Dict[str, Any]]) -> 
 # Dialog handlers
 # ----------------------------------------------------------------------
 
+def _lookup_maps(analysis: Dict[str, Any]) -> tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+    stats = analysis.get("stats") or {}
+    devices_by_id = stats.get("devices_by_id") or stat_mod.build_devices_by_id(analysis.get("devices", []))
+    borrowers_by_id = stats.get("borrowers_by_id") or stat_mod.build_borrowers_by_id(analysis.get("borrowers", []))
+    return devices_by_id, borrowers_by_id
+
+
 def _dialog_view(payload: Dict[str, Any], analysis: Dict[str, Any]) -> None:
     records = analysis.get("records", [])
     record = _find_record(records, payload.get("borrow_id", ""))
     if record is None:
         detail_dialog("Không tìm thấy phiếu mượn", [("Mã phiếu", str(payload.get("borrow_id", "")))])
         return
-    stats = stat_mod.compute_all(
-        analysis.get("devices", []),
-        analysis.get("borrowers", []),
-        records,
-        today=date.today(),
-    )
+    devices_by_id, borrowers_by_id = _lookup_maps(analysis)
     detail_dialog(
         f"Phiếu mượn {record.get('borrow_id', '')}",
-        record_detail_rows(record, stats.get("devices_by_id", {}), stats.get("borrowers_by_id", {})),
+        record_detail_rows(record, devices_by_id, borrowers_by_id),
         badges=[status_label(record.get("status", ""))],
     )
 
@@ -445,17 +485,64 @@ def _dialog_create(analysis: Dict[str, Any]) -> None:
     form_dialog("Tạo phiếu mượn", lambda: _record_form(analysis, None))
 
 
+def _dialog_quick_return(payload: Dict[str, Any], analysis: Dict[str, Any]) -> None:
+    """Đánh dấu đã trả thiết bị nhanh trong 1 click (kèm bước xác nhận)."""
+    record = _find_record(analysis.get("records", []), payload.get("borrow_id", ""))
+    if record is None:
+        detail_dialog("Không tìm thấy phiếu mượn", [("Mã phiếu", str(payload.get("borrow_id", "")))])
+        return
+    devices_by_id, borrowers_by_id = _lookup_maps(analysis)
+    ref_today: date = analysis.get("today") or date.today()
+    borrow_dt = parse_date(record.get("borrow_date"))
+    return_dt = max(ref_today, borrow_dt) if borrow_dt else ref_today
+    return_str = return_dt.strftime("%d/%m/%Y")
+    borrow_id = str(record.get("borrow_id", "")).strip()
+    device_id = str(record.get("device_id", "")).strip()
+
+    def _confirm() -> None:
+        updated = data_store.update_row(
+            main.RECORDS_CSV,
+            RECORD_COLUMNS,
+            "borrow_id",
+            borrow_id,
+            {"return_date": return_str, "status": "returned"},
+        )
+        if updated:
+            data_store.sync_device_status(
+                main.DEVICES_CSV, main.RECORDS_CSV, DEVICE_COLUMNS, RECORD_COLUMNS, [device_id]
+            )
+            clear_data_cache()
+            set_flash(f"Đã đánh dấu trả thiết bị cho phiếu {borrow_id} (ngày trả {return_str}).")
+        else:
+            set_flash("Không tìm thấy phiếu mượn để cập nhật.")
+
+    confirm_dialog(
+        f"Xác nhận trả thiết bị — {borrow_id}",
+        f"Ghi nhận phiếu {borrow_id} đã trả ngày {return_str} và cập nhật thiết bị {device_id} về trạng thái sẵn sàng?",
+        "Xác nhận đã trả",
+        _confirm,
+        detail_rows=record_detail_rows(record, devices_by_id, borrowers_by_id),
+    )
+
+
 def _dialog_delete(payload: Dict[str, Any], analysis: Dict[str, Any]) -> None:
     record = _find_record(analysis.get("records", []), payload.get("borrow_id", ""))
     if record is None:
         detail_dialog("Không tìm thấy phiếu mượn", [("Mã phiếu", str(payload.get("borrow_id", "")))])
         return
+    devices_by_id, borrowers_by_id = _lookup_maps(analysis)
+    device_id = str(record.get("device_id", "")).strip()
 
     def _confirm() -> None:
         removed = data_store.delete_row(
             main.RECORDS_CSV, RECORD_COLUMNS, "borrow_id", str(record.get("borrow_id", ""))
         )
+        if removed and device_id:
+            data_store.sync_device_status(
+                main.DEVICES_CSV, main.RECORDS_CSV, DEVICE_COLUMNS, RECORD_COLUMNS, [device_id]
+            )
         clear_data_cache()
+        st.session_state.pop(SELECTED_KEY, None)
         if removed:
             set_flash(f"Đã xóa phiếu mượn {record.get('borrow_id', '')}.")
         else:
@@ -466,11 +553,7 @@ def _dialog_delete(payload: Dict[str, Any], analysis: Dict[str, Any]) -> None:
         f"Bạn có chắc muốn xóa phiếu mượn {record.get('borrow_id', '')}? Thao tác này không thể hoàn tác.",
         "Xóa phiếu mượn",
         _confirm,
-        detail_rows=record_detail_rows(
-            record,
-            stat_mod.build_devices_by_id(analysis.get("devices", [])),
-            stat_mod.build_borrowers_by_id(analysis.get("borrowers", [])),
-        ),
+        detail_rows=record_detail_rows(record, devices_by_id, borrowers_by_id),
     )
 
 
@@ -480,14 +563,24 @@ def _dialog_bulk_delete(payload: Dict[str, Any], analysis: Dict[str, Any]) -> No
         detail_dialog("Chưa chọn phiếu mượn", [("Số mục chọn", "0")])
         return
 
-    existing_ids = {
-        str(record.get("borrow_id", "")).strip()
-        for record in analysis.get("records", [])
-    }
+    records = analysis.get("records", [])
+    existing_ids = {str(record.get("borrow_id", "")).strip() for record in records}
+    target_set = set(borrow_ids)
+    affected_devices = [
+        str(record.get("device_id", "")).strip()
+        for record in records
+        if str(record.get("borrow_id", "")).strip() in target_set
+    ]
 
     def _confirm() -> None:
         removed = data_store.delete_rows(main.RECORDS_CSV, RECORD_COLUMNS, "borrow_id", borrow_ids)
+        if removed and affected_devices:
+            data_store.sync_device_status(
+                main.DEVICES_CSV, main.RECORDS_CSV, DEVICE_COLUMNS, RECORD_COLUMNS, affected_devices
+            )
         clear_data_cache()
+        st.session_state.pop(SELECT_ALL_KEY, None)
+        st.session_state.pop(SELECTED_KEY, None)
         if removed == len(borrow_ids):
             set_flash(f"Đã xóa {removed} phiếu mượn.")
         else:
@@ -513,8 +606,20 @@ def _dialog_delete_all(payload: Dict[str, Any], analysis: Dict[str, Any]) -> Non
         detail_dialog("Không có phiếu mượn để xóa", [("Số phiếu trong phạm vi", "0")])
         return
 
+    records = analysis.get("records", [])
+    target_set = set(borrow_ids)
+    affected_devices = [
+        str(record.get("device_id", "")).strip()
+        for record in records
+        if str(record.get("borrow_id", "")).strip() in target_set
+    ]
+
     def _confirm() -> None:
         removed = data_store.delete_rows(main.RECORDS_CSV, RECORD_COLUMNS, "borrow_id", borrow_ids)
+        if removed and affected_devices:
+            data_store.sync_device_status(
+                main.DEVICES_CSV, main.RECORDS_CSV, DEVICE_COLUMNS, RECORD_COLUMNS, affected_devices
+            )
         clear_data_cache()
         st.session_state.pop(SELECT_ALL_KEY, None)
         st.session_state.pop(SELECTED_KEY, None)
@@ -548,6 +653,7 @@ def render(analysis: Dict[str, Any]) -> None:
     base_records: List[Dict[str, Any]] = analysis.get("records", [])
     devices = analysis.get("devices", [])
     borrowers = analysis.get("borrowers", [])
+    today: date = analysis.get("today") or reference_today(base_records)
 
     can_create = bool(devices) and bool(borrowers)
     page_header(
@@ -565,17 +671,19 @@ def render(analysis: Dict[str, Any]) -> None:
     if render_first_run_guide(analysis):
         return
 
-    filters = _render_toolbar(devices)
-    devices_by_id = stat_mod.build_devices_by_id(devices)
-    borrowers_by_id = stat_mod.build_borrowers_by_id(borrowers)
+    filters = _render_toolbar(devices, today=today)
+    devices_by_id, borrowers_by_id = _lookup_maps(analysis)
 
     filtered = filter_records(
         base_records,
         search=filters["search"],
         status=filters["status"],
         time_mode=filters["time_mode"],
+        custom_start=filters.get("custom_start"),
+        custom_end=filters.get("custom_end"),
         devices_by_id=devices_by_id,
         borrowers_by_id=borrowers_by_id,
+        today=today,
     )
     if bool(st.session_state.get(SORT_KEY, False)):
         filtered = sort_records_by_borrow_date(filtered, newest_first=True)
@@ -613,7 +721,7 @@ def render(analysis: Dict[str, Any]) -> None:
             )
 
         selected_rows = [page_rows[index] for index in selected_indices if 0 <= index < len(page_rows)]
-        if assisted_ids:
+        if assisted_ids and not selected_rows:
             selected_rows = [row for row in page_rows if str(row.get("Mã phiếu", "")).strip() in set(assisted_ids)]
         if selected_rows:
             selected_ids = [row["Mã phiếu"] for row in selected_rows]
@@ -632,14 +740,26 @@ def render(analysis: Dict[str, Any]) -> None:
             selected_row = selected_rows[0]
             borrow_id = selected_row["Mã phiếu"]
             st.session_state[SELECTED_KEY] = borrow_id
+            row_actions = [
+                ("Xem", "borrow_action_view", lambda: open_dialog("view", borrow_id=borrow_id), ""),
+                ("Sửa", "borrow_action_edit", lambda: open_dialog("edit", borrow_id=borrow_id), ""),
+            ]
+            if selected_row.get("Trạng thái") in ("Đang mượn", "Quá hạn"):
+                row_actions.append(
+                    (
+                        "✓ Đã trả",
+                        "borrow_action_return",
+                        lambda: open_dialog("quick_return", borrow_id=borrow_id),
+                        "primary",
+                    )
+                )
+            row_actions.append(
+                ("Xóa", "borrow_action_delete", lambda: open_dialog("delete", borrow_id=borrow_id), "")
+            )
             render_row_action_bar(
-                f'Đang chọn <strong>{borrow_id}</strong> · {selected_row["Tên thiết bị"]} · '
-                f'{selected_row["Người mượn"]}',
-                [
-                    ("Xem", "borrow_action_view", lambda: open_dialog("view", borrow_id=borrow_id), ""),
-                    ("Sửa", "borrow_action_edit", lambda: open_dialog("edit", borrow_id=borrow_id), ""),
-                    ("Xóa", "borrow_action_delete", lambda: open_dialog("delete", borrow_id=borrow_id), ""),
-                ],
+                f'Đang chọn <strong>{esc(borrow_id)}</strong> · {esc(selected_row["Tên thiết bị"])} · '
+                f'{esc(selected_row["Người mượn"])}',
+                row_actions,
             )
         elif len(selected_rows) > 1:
             render_hint(
@@ -657,6 +777,7 @@ def render(analysis: Dict[str, Any]) -> None:
             "create": lambda payload: _dialog_create(analysis),
             "view": lambda payload: _dialog_view(payload, analysis),
             "edit": lambda payload: _dialog_edit(payload, analysis),
+            "quick_return": lambda payload: _dialog_quick_return(payload, analysis),
             "delete": lambda payload: _dialog_delete(payload, analysis),
             "bulk_delete": lambda payload: _dialog_bulk_delete(payload, analysis),
             "delete_all": lambda payload: _dialog_delete_all(payload, analysis),
