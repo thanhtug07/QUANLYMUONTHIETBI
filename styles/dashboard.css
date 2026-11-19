@@ -112,6 +112,21 @@ svg { max-width: 100%; }
 }
 [data-testid="stExpandSidebarButton"] svg { color: var(--color-primary) !important; }
 [data-testid="stHeader"] { background: transparent; }
+/* Ép nền TRẮNG cho toàn bộ khung app (kể cả khi trình duyệt còn lưu lựa chọn
+   Dark của Streamlit) — nền bên phải không bao giờ bị tối. */
+.stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"],
+[data-testid="stBottom"],
+[data-testid="stBottomBlockContainer"] {
+  background-color: var(--color-bg) !important;
+  color: var(--color-text);
+}
+/* Mọi phần tử bấm được: con trỏ bàn tay (chuẩn SaaS). */
+button:not(:disabled),
+[role="button"],
+[data-baseweb="select"],
+summary { cursor: pointer; }
 .block-container,
 [data-testid="stMainBlockContainer"] {
   padding-top: var(--spacing-md) !important;

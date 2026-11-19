@@ -15,8 +15,15 @@ import streamlit as st
 from styles import tokens
 
 
+#: App cố định giao diện SÁNG (nền trắng, xanh dương chủ đạo). Đặt True để
+#: cho phép theo chế độ tối của trình duyệt / Streamlit như trước.
+ALLOW_DARK_MODE = False
+
+
 def is_dark() -> bool:
-    """True khi giao diện Streamlit đang ở chế độ tối (an toàn khi chạy test/bare)."""
+    """True khi được phép dark mode VÀ Streamlit đang ở chế độ tối."""
+    if not ALLOW_DARK_MODE:
+        return False
     try:
         theme = getattr(st.context, "theme", None)
         return str(getattr(theme, "type", "") or "").lower() == "dark"

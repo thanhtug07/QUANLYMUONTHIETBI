@@ -135,6 +135,26 @@ def two_column_grid() -> Tuple[DeltaGenerator, DeltaGenerator]:
 _SHORTCUT_JS = """
 <script>
 (function () {
+  // Giao diện cố định SÁNG: nếu trình duyệt còn lưu lựa chọn theme Dark của
+  // Streamlit (localStorage "stActiveTheme…") thì xoá và tải lại MỘT lần.
+  try {
+    var reset = false;
+    for (var k = localStorage.length - 1; k >= 0; k--) {
+      var key = localStorage.key(k);
+      if (key && key.indexOf("stActiveTheme") === 0) {
+        var value = localStorage.getItem(key) || "";
+        if (value.toLowerCase().indexOf("dark") !== -1 || value.toLowerCase().indexOf("system") !== -1) {
+          localStorage.removeItem(key);
+          reset = true;
+        }
+      }
+    }
+    if (reset && !sessionStorage.getItem("qlThemeReset")) {
+      sessionStorage.setItem("qlThemeReset", "1");
+      window.location.reload();
+      return;
+    }
+  } catch (err) { /* trình duyệt chặn storage: bỏ qua */ }
   if (window.__qlShortcuts) { return; }
   window.__qlShortcuts = true;
   function isTyping(el) {

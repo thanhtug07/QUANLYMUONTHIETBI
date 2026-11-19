@@ -23,11 +23,11 @@ from typing import Dict, Final
 COLORS: Final[Dict[str, str]] = {
     "bg": "#FFFFFF",           # nền trang: trắng
     "surface": "#FFFFFF",      # card / bề mặt chính
-    "surface-alt": "#F4F8FD",  # nền phụ xanh rất nhạt (header bảng, hover)
-    "text": "#1B2A41",         # mực chữ xanh than (thay xám)
+    "surface-alt": "#F8FAFC",  # nền phụ (header bảng, hover) — slate-50
+    "text": "#1E293B",         # chữ chính — slate-800
     "primary": "#0054A3",      # xanh dương chủ đạo (sidebar, nút chính)
     "accent": "#3D9DF3",       # xanh nhấn
-    "border": "#D6E4F5",       # viền xanh nhạt
+    "border": "#E2E8F0",       # viền trung tính chuẩn SaaS — slate-200
 }
 
 COLOR_BG: Final[str] = COLORS["bg"]
@@ -39,8 +39,8 @@ COLOR_ACCENT: Final[str] = COLORS["accent"]
 COLOR_BORDER: Final[str] = COLORS["border"]
 
 #: Chữ phụ = màu text với alpha (không thêm màu mới).
-TEXT_MUTED: Final[str] = "rgba(27, 42, 65, 0.70)"  # >= 4,5:1 cả trên nền trắng lẫn #F4F8FD
-TEXT_SOFT: Final[str] = "rgba(27, 42, 65, 0.80)"
+TEXT_MUTED: Final[str] = "#475569"  # slate-600, 7,5:1 trên trắng (WCAG AA)
+TEXT_SOFT: Final[str] = "#334155"  # slate-700
 
 #: Nền nhấn = primary / accent với alpha thấp.
 PRIMARY_TINT: Final[str] = "rgba(0, 84, 163, 0.08)"
@@ -99,9 +99,10 @@ SPACING: Final[Dict[str, str]] = {
     "3xl": "32px",
 }
 
-SHADOW_SUBTLE: Final[str] = "0 1px 2px rgba(0, 84, 163, 0.05)"
-SHADOW_CARD: Final[str] = "0 1px 3px rgba(0, 84, 163, 0.06), 0 4px 14px rgba(0, 84, 163, 0.05)"
-SHADOW_MENU: Final[str] = "0 6px 18px rgba(0, 84, 163, 0.12)"
+SHADOW_SUBTLE: Final[str] = "0 1px 2px rgba(15, 23, 42, 0.04)"
+#: Flat SaaS: card chỉ dùng viền 1px + bóng gần như không thấy.
+SHADOW_CARD: Final[str] = "0 1px 2px rgba(15, 23, 42, 0.04)"
+SHADOW_MENU: Final[str] = "0 8px 24px rgba(15, 23, 42, 0.10)"
 
 # ----------------------------------------------------------------------
 # STATUS SEMANTIC — màu trạng thái duy nhất được phép dùng
@@ -140,11 +141,11 @@ STATUS: Final[Dict[str, Dict[str, str]]] = {
         "base": "#CE4B3C",
     },
     "neutral": {  # chưa xác định / không hoạt động
-        "text": "rgba(27, 42, 65, 0.80)",
-        "bg": "#F4F8FD",
-        "border": "#D6E4F5",
-        "dot": "rgba(27, 42, 65, 0.45)",
-        "base": "#D6E4F5",
+        "text": "#334155",
+        "bg": "#F8FAFC",
+        "border": "#E2E8F0",
+        "dot": "#94A3B8",
+        "base": "#CBD5E1",
     },
 }
 
