@@ -76,6 +76,14 @@ def page_label(slug: str) -> str:
     return DEFAULT_PAGE
 
 
+def page_section(slug: str) -> str:
+    """Tên nhóm điều hướng chứa trang (dùng cho breadcrumb topbar)."""
+    for section_title, items in NAV_SECTIONS:
+        if any(item.slug == slug for item in items):
+            return section_title
+    return ""
+
+
 @functools.lru_cache(maxsize=16)
 def _nav_icon_css(active: str) -> str:
     """
@@ -88,9 +96,17 @@ def _nav_icon_css(active: str) -> str:
     for item in all_items():
         color = tokens.COLOR_PRIMARY if item.slug == active else tokens.TEXT_SOFT
         uri = icon_data_uri(item.icon_name, color)
+        # Tiền tố stSidebar + !important: rule nền chung của button
+        # (`[data-testid="stButton"] button { background: ... }`, kể cả :hover)
+        # dùng shorthand `background` nên sẽ xoá mất icon nếu chỉ ngang hàng
+        # độ ưu tiên.
         rules.append(
-            f'.st-key-{NAV_KEY_PREFIX}{item.slug} button '
-            f'{{ background-image: url("{uri}"); }}'
+            f'[data-testid="stSidebar"] .st-key-{NAV_KEY_PREFIX}{item.slug} button, '
+            f'[data-testid="stSidebar"] .st-key-{NAV_KEY_PREFIX}{item.slug} button:hover '
+            f'{{ background-image: url("{uri}") !important; '
+            f'background-repeat: no-repeat !important; '
+            f'background-position: 15px center !important; '
+            f'background-size: 17px 17px !important; }}'
         )
     return "\n".join(rules)
 

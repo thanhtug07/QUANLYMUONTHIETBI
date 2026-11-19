@@ -23,9 +23,11 @@ import statistics as stat_mod
 import streamlit as st
 import validators
 
+from pages import borrowing as borrowing_page
 from pages.common import record_detail_rows
 from ui.badges import severity_badge, severity_label, status_badge
 from ui.tables import paginate, render_pagination, render_table_export
+from ui.forms import render_flash
 from ui.dialogs import detail_dialog, open_dialog, render_pending_dialog
 from ui.layout import card_header, page_header, two_column_grid
 from ui.metrics import MetricCard, render_kpi_grid
@@ -231,14 +233,29 @@ def _render_group(
                 on_click=item["on_click"],
                 help=f"Xem chi tiết cảnh báo #{index + 1}",
             )
-            st.button(
-                "✓ Đã xử lý",
-                key=f"handled_{item['key']}",
-                width="stretch",
-                on_click=_dismiss_alert,
-                args=(item["key"],),
-                help="Ẩn cảnh báo này trong phiên hiện tại.",
-            )
+            return_id = str(item.get("return_borrow_id", "") or "")
+            if return_id:
+                # Phiếu quá hạn: xử lý THẬT = ghi nhận đã trả (cập nhật CSV qua
+                # dialog quick_return dùng chung với trang Phiếu mượn), thay vì
+                # chỉ ẩn tạm trên giao diện.
+                st.button(
+                    "✓ Đã trả",
+                    key=f"return_{item['key']}",
+                    width="stretch",
+                    on_click=open_dialog,
+                    args=("quick_return",),
+                    kwargs={"borrow_id": return_id},
+                    help="Ghi nhận thiết bị đã được trả (có bước xác nhận, cập nhật CSV).",
+                )
+            else:
+                st.button(
+                    "✓ Đã xử lý",
+                    key=f"handled_{item['key']}",
+                    width="stretch",
+                    on_click=_dismiss_alert,
+                    args=(item["key"],),
+                    help="Ẩn cảnh báo này trong phiên hiện tại (tải lại trang sẽ hiện lại).",
+                )
     # Ô trống bù cho đủ 5 hàng để 2 block cạnh nhau cân chiều cao.
     empty_slots = max(0, ALERT_PAGE_SIZE - len(page_rows))
     if empty_slots:
@@ -282,6 +299,7 @@ def _overdue_items(
                 # Quá hạn >= ngưỡng thất thoát của validators là mức danger.
                 "severity": "danger" if days >= validators.LOST_THRESHOLD_DAYS else "warning",
                 "key": item_key,
+                "return_borrow_id": borrow_id,
                 "on_click": lambda record=record: open_dialog("alert_record", record=record),
             }
         )
@@ -364,6 +382,8 @@ def render(analysis: Dict[str, Any]) -> None:
             f"{len(errors)} bản ghi dữ liệu cần kiểm tra"
         ),
     )
+
+    render_flash()
 
     render_kpi_grid(
         [
@@ -476,6 +496,7 @@ def render(analysis: Dict[str, Any]) -> None:
 
     render_pending_dialog(
         {
+            "quick_return": lambda payload: borrowing_page._dialog_quick_return(payload, analysis),
             "alert_record": lambda payload: detail_dialog(
                 f"Phiếu mượn {payload.get('record', {}).get('borrow_id', '')}",
                 record_detail_rows(

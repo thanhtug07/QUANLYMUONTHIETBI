@@ -32,6 +32,12 @@ CHART_HEIGHT = 240
 WEEKDAY_EXTRA_AXIS = 40
 WEEKDAY_CHART_HEIGHT = CHART_HEIGHT + WEEKDAY_EXTRA_AXIS
 
+#: Cột ngang theo loại thiết bị: cao hơn một chút để mỗi thanh (~13 loại)
+#: vẫn đủ dày, bù cho phần nhãn xoay của bản cột dọc cũ.
+CATEGORY_CHART_HEIGHT = CHART_HEIGHT + WEEKDAY_EXTRA_AXIS
+#: Chiều cao tối thiểu mỗi thanh ngang (đủ chỗ cho nhãn 12px không chồng).
+CATEGORY_BAR_STEP = 24
+
 #: Font cho Vega-Lite (lấy từ design tokens).
 CHART_FONT = tokens.FONT_NAME
 
@@ -104,26 +110,42 @@ def render_category_chart(rows: Sequence[Tuple[str, int]], footer_total: int) ->
         return
 
     frame = pd.DataFrame(list(rows), columns=["Loại thiết bị", "Số lượt"])
-    chart = (
-        alt.Chart(frame)
-        .mark_bar(color=tokens.COLOR_PRIMARY, cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
-        .encode(
-            x=alt.X(
-                "Loại thiết bị:N",
-                title=None,
-                sort=None,
-                # 13 nhãn dài ("Cáp - Điều khiển", "Phấn - Bảng", ...): xoay
-                # -30° + giới hạn 90 ký tự hiển thị để không chồng lấn mà vẫn
-                # đọc được; font giữ 12px (không thu chữ để nhét).
-                axis=_axis_labels(labelLimit=90, labelAngle=-30, grid=False),
+    # Cột NGANG: tên loại thiết bị dài ("Cáp - Điều khiển"...) nằm trên trục Y
+    # nên đọc đủ mọi nhãn (cột dọc xoay -30° từng bị Vega ẩn bớt nhãn chồng
+    # lấn). Số lượt ghi ngay cuối thanh -> không cần dò trục.
+    base = alt.Chart(frame).encode(
+        y=alt.Y(
+            "Loại thiết bị:N",
+            title=None,
+            sort=None,
+            # labelOverlap=False: luôn hiện ĐỦ tên loại (Vega mặc định ẩn bớt
+            # nhãn khi thanh mỏng); chiều cao đã tính đủ ~24px mỗi thanh.
+            axis=_axis_labels(
+                labelLimit=140, labelOverlap=False, labelPadding=6,
+                grid=False, ticks=False, domain=False,
             ),
-            y=alt.Y("Số lượt:Q", title=None, axis=_value_axis()),
-            tooltip=[
-                alt.Tooltip("Loại thiết bị:N", title="Loại thiết bị"),
-                alt.Tooltip("Số lượt:Q", title="Số lượt"),
-            ],
+        ),
+        x=alt.X("Số lượt:Q", title=None, axis=_value_axis()),
+        tooltip=[
+            alt.Tooltip("Loại thiết bị:N", title="Loại thiết bị"),
+            alt.Tooltip("Số lượt:Q", title="Số lượt"),
+        ],
+    )
+    bars = base.mark_bar(
+        color=tokens.COLOR_PRIMARY,
+        cornerRadiusTopRight=3,
+        cornerRadiusBottomRight=3,
+    )
+    labels = base.mark_text(
+        align="left", dx=4, fontSize=12, fontWeight=600, color=tokens.COLOR_TEXT
+    ).encode(text="Số lượt:Q")
+    chart = (
+        (bars + labels)
+        .properties(
+            height=max(CATEGORY_CHART_HEIGHT, CATEGORY_BAR_STEP * len(frame)),
+            background="transparent",
+            padding={"left": 4, "right": 24, "top": 4, "bottom": 4},
         )
-        .properties(height=CHART_HEIGHT, background="transparent")
         .configure_view(stroke=None, fill="transparent")
         .configure(font=CHART_FONT)
     )
@@ -211,7 +233,8 @@ def render_trend_area(
     """
     Biểu đồ VÙNG — focal point "Hoạt động mượn thiết bị" (trang Tổng quan).
 
-    Area vẽ TỔNG LƯỢT TÍCH LŨY theo tháng (chỉ gồm tháng có phiếu thật, sinh
+    Area vẽ SỐ LƯỢT MƯỢN TỪNG THÁNG (thấy được tháng cao/thấp — bản tích luỹ
+    cũ luôn đi lên nên không cho thông tin) (chỉ gồm tháng có phiếu thật, sinh
     từ statistics.borrows_by_month — không nội suy tháng trống, không bịa số).
     Ba con số phía trên (Tổng / Đang mượn / Đã trả) là số liệu thật của stats.
     """
@@ -224,29 +247,34 @@ def render_trend_area(
         )
         return
 
-    cumulative: List[int] = []
-    running = 0
-    for _, count in rows:
-        running += int(count)
-        cumulative.append(running)
-
     frame = pd.DataFrame(
         {
             "Tháng": [month_label(month) for month, _ in rows],
-            "Tổng lượt (tích luỹ)": cumulative,
+            "Lượt mượn": [int(count) for _, count in rows],
         }
     )
+    base = alt.Chart(frame).encode(
+        x=alt.X("Tháng:N", title=None, sort=None, axis=_axis_labels(labelAngle=0, grid=False)),
+        y=alt.Y("Lượt mượn:Q", title=None, axis=_value_axis()),
+        tooltip=[
+            alt.Tooltip("Tháng:N", title="Tháng"),
+            alt.Tooltip("Lượt mượn:Q", title="Lượt mượn"),
+        ],
+    )
+    area = base.mark_area(
+        color=tokens.COLOR_ACCENT,
+        opacity=0.16,
+        line={"color": tokens.COLOR_PRIMARY, "size": 2.5},
+        interpolate="monotone",
+    )
+    points = base.mark_point(
+        filled=True, size=55, color=tokens.COLOR_PRIMARY, stroke=tokens.COLOR_SURFACE, strokeWidth=1.5
+    )
+    labels = base.mark_text(dy=-12, fontSize=12, fontWeight=600, color=tokens.COLOR_TEXT).encode(
+        text="Lượt mượn:Q"
+    )
     chart = (
-        alt.Chart(frame)
-        .mark_area(color=tokens.COLOR_ACCENT, opacity=0.16, line={"color": tokens.COLOR_PRIMARY, "size": 2.5}, interpolate="monotone")
-        .encode(
-            x=alt.X("Tháng:N", title=None, sort=None, axis=_axis_labels(labelAngle=0, grid=False)),
-            y=alt.Y("Tổng lượt (tích luỹ):Q", title=None, axis=_value_axis()),
-            tooltip=[
-                alt.Tooltip("Tháng:N", title="Tháng"),
-                alt.Tooltip("Tổng lượt (tích luỹ):Q", title="Tổng lượt"),
-            ],
-        )
+        (area + points + labels)
         .properties(height=CHART_HEIGHT, background="transparent")
         .configure_view(stroke=None, fill="transparent")
         .configure(font=CHART_FONT)

@@ -13,9 +13,23 @@ import streamlit as st
 from utils.helpers import esc, icon
 
 
-def render_topbar(context: str = "", alert_count: int = 0) -> None:
-    """Topbar trắng, gọn một dòng; `context` là tên trang đang mở, `alert_count` là số cảnh báo active."""
-    context_html = f'<span class="page-chip">{esc(context)}</span>' if context else ""
+def render_topbar(context: str = "", alert_count: int = 0, section: str = "") -> None:
+    """
+    Topbar trắng, gọn một dòng: breadcrumb `section › context` bên trái,
+    chuông cảnh báo bên phải.
+
+    Brand + khối người dùng đã có ở sidebar nên KHÔNG lặp lại ở đây (topbar
+    trước đây hiển thị trùng cả hai) — dành chỗ cho ngữ cảnh trang đang xem.
+    """
+    crumbs = []
+    if section:
+        crumbs.append(f'<span class="crumb">{esc(section)}</span>')
+    if context:
+        crumbs.append(f'<span class="crumb current" aria-current="page">{esc(context)}</span>')
+    sep = f'<span class="crumb-sep" aria-hidden="true">›</span>'
+    context_html = (
+        f'<nav class="breadcrumb" aria-label="Breadcrumb">{sep.join(crumbs)}</nav>' if crumbs else ""
+    )
     badge_html = (
         f'<span class="bell-badge" aria-label="{int(alert_count)} cảnh báo">{int(alert_count)}</span>'
         if alert_count > 0
@@ -31,18 +45,11 @@ def render_topbar(context: str = "", alert_count: int = 0) -> None:
         f'<div class="app-topbar">'
         f'<div class="brand">'
         f'<span class="brand-mark">{icon("box", 19)}</span>'
-        f'<span class="brand-text">'
-        f'<span class="brand-name">Quản lý thiết bị</span>'
-        f'<span class="brand-sub">Theo dõi mượn / trả thiết bị</span>'
-        f"</span>"
         f"{context_html}"
         f"</div>"
         f'<div class="topbar-right">'
         f'<span class="{bell_cls}" role="img" aria-label="Thông báo: {esc(bell_title)}" title="{esc(bell_title)}">'
         f'{icon("bell", 17)}{badge_html}</span>'
-        f'<span class="user-chip">'
-        f'<span class="user-avatar">QL</span>'
-        f'<span class="user-name">Người quản lý</span>'
-        f"</span></div></div>",
+        f"</div></div>",
         unsafe_allow_html=True,
     )

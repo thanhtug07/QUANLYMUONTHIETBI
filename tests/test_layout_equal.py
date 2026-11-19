@@ -93,4 +93,4 @@ def test_alerts_equal_cards_slots_and_pagination_intact():
     assert html.count('class="pagination-info"') == 3  # đủ 3 nhóm
     keys = [b.key for b in at.button]
     assert "alert_page_overdue_next" in keys
-    assert "handled_alert_overdue_PM061" in keys
+    assert "return_alert_overdue_PM061" in keys

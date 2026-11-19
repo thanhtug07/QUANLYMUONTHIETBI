@@ -16,7 +16,8 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 import pandas as pd
 import streamlit as st
 
-from ui.badges import status_badge
+from styles import tokens
+from ui.badges import status_badge, status_variant
 from ui.states import render_empty_state, render_no_results
 from utils.helpers import esc, format_date, icon, status_label
 
@@ -121,6 +122,32 @@ def _goto_page(page_key: str, page: int) -> None:
     st.session_state.pop("dialog", None)
 
 
+#: Cột chứa nhãn trạng thái (được tô màu theo variant semantic).
+STATUS_COLUMN = "Trạng thái"
+
+
+def _status_cell_css(value: Any) -> str:
+    """CSS cho một ô trạng thái: chữ đậm + nền nhạt theo `tokens.STATUS`."""
+    variant = status_variant(str(value or ""))
+    if variant == "neutral":
+        return ""
+    palette = tokens.STATUS[variant]
+    return f"color: {palette['text']}; background-color: {palette['bg']}; font-weight: 600;"
+
+
+def style_status_column(frame: pd.DataFrame) -> Any:
+    """
+    Tô màu cột "Trạng thái" (Đã trả xanh lá, Đang mượn xanh dương, Quá hạn
+    cam, Thất thoát đỏ...) để dòng cần chú ý nổi bật ngay trong bảng dài.
+
+    Giá trị ô KHÔNG đổi (vẫn là nhãn chữ) nên logic so sánh nhãn ở các page
+    giữ nguyên; màu chỉ là tín hiệu bổ sung, không phải tín hiệu duy nhất.
+    """
+    if STATUS_COLUMN not in frame.columns or frame.empty:
+        return frame
+    return frame.style.map(_status_cell_css, subset=[STATUS_COLUMN])
+
+
 def table_height(row_count: int, maximum: int = MAX_TABLE_HEIGHT) -> int:
     """Chiều cao bảng theo số dòng (không để bảng rỗng quá cao hoặc quá ngắn)."""
     return int(min(maximum, max(MIN_TABLE_HEIGHT, 48 + row_count * ROW_HEIGHT)))
@@ -149,7 +176,7 @@ def render_records_table(
 
     frame = pd.DataFrame(list(rows), columns=list(columns))
     state = st.dataframe(
-        frame,
+        style_status_column(frame),
         width="stretch",
         height=height or table_height(len(rows)),
         hide_index=True,
@@ -314,7 +341,7 @@ def render_borrow_table(
 
     frame = pd.DataFrame(rows, columns=TABLE_COLUMNS)
     st.dataframe(
-        frame,
+        style_status_column(frame),
         width="stretch",
         height=table_height(len(rows), maximum=420),
         hide_index=True,

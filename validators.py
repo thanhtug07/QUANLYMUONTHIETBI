@@ -241,6 +241,39 @@ def find_overdue_records(
     return overdue
 
 
+#: Số ngày tới được coi là "sắp đến hạn" (nhắc trả trước khi thành quá hạn).
+DUE_SOON_DAYS = 3
+
+
+def find_due_soon_records(
+    records: List[Dict[str, Any]],
+    today: Optional[date] = None,
+    within_days: int = DUE_SOON_DAYS,
+) -> List[Dict[str, Any]]:
+    """
+    Phát hiện phiếu SẮP ĐẾN HẠN: chưa trả, chưa khai báo mất và
+    today <= due_date <= today + within_days.
+
+    Mỗi kết quả là BẢN SAO của phiếu + `days_left` (0 = hạn trả hôm nay),
+    sắp tăng dần theo `days_left` để phiếu gấp nhất lên đầu.
+    """
+    today = today or date.today()
+    due_soon: List[Dict[str, Any]] = []
+    for row in records:
+        status = str(row.get("status", "")).strip()
+        if status == "lost" or str(row.get("return_date", "") or "").strip():
+            continue
+        due = _to_date(row.get("due_date"))
+        if due is None:
+            continue
+        days_left = (due - today).days
+        if 0 <= days_left <= within_days:
+            flag = dict(row)
+            flag["days_left"] = days_left
+            due_soon.append(flag)
+    return sorted(due_soon, key=lambda r: (r["days_left"], str(r.get("borrow_id", ""))))
+
+
 def find_lost_devices(
     records: List[Dict[str, Any]], today: Optional[date] = None
 ) -> List[str]:

@@ -29,9 +29,9 @@ def setup_page() -> None:
         page_title="Quản lý mượn thiết bị",
         page_icon="📋",
         layout="wide",
-        # "expanded": sidebar luôn mở khi tải trang — người không rành công nghệ
-        # vẫn thấy ngay menu điều hướng (không bị gập rồi tưởng mất trang).
-        initial_sidebar_state="expanded",
+        # "auto": mở sẵn trên máy tính (người dùng thấy ngay menu), tự gập trên
+        # điện thoại để sidebar không che toàn bộ nội dung.
+        initial_sidebar_state="auto",
     )
 
 

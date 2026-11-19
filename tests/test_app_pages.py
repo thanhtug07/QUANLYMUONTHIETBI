@@ -122,20 +122,31 @@ def test_alerts_filter_clamps_page():
 
 
 def test_alerts_dismiss_hides_item_for_session():
-    """Bấm 'Đã xử lý' ẩn mục trong phiên + hiện ghi chú; Đặt lại hiện lại."""
+    """Bấm 'Đã xử lý' (nhóm Thất thoát) ẩn mục trong phiên + ghi chú; Đặt lại hiện lại."""
     at = _run("alerts")
-    before = " ".join(m.value for m in at.markdown)
-    assert "alert_overdue_PM061" in str([b.key for b in at.button])
-    at.button(key="handled_alert_overdue_PM061").click().run()
+    assert "handled_alert_lost_TB015" in str([b.key for b in at.button])
+    at.button(key="handled_alert_lost_TB015").click().run()
     assert len(at.exception) == 0
     after = " ".join(m.value for m in at.markdown)
-    assert "PM061" not in after
+    assert "TB015" not in after
     captions = " ".join(c.value for c in at.caption)
     assert "Đã ẩn 1 mục đã xử lý" in captions
     at.button(key="alert_reset").click().run()
     assert len(at.exception) == 0
     restored = " ".join(m.value for m in at.markdown)
-    assert "PM061" in restored
+    assert "TB015" in restored
+
+
+def test_alerts_overdue_item_offers_real_return():
+    """Phiếu quá hạn có nút '✓ Đã trả' mở dialog xác nhận (không ẩn tạm)."""
+    at = _run("alerts")
+    keys = [b.key for b in at.button]
+    assert "return_alert_overdue_PM061" in keys
+    assert "handled_alert_overdue_PM061" not in keys
+    at.button(key="return_alert_overdue_PM061").click().run()
+    assert len(at.exception) == 0
+    assert at.session_state["dialog"]["kind"] == "quick_return"
+    assert at.session_state["dialog"]["borrow_id"] == "PM061"
 
 
 def test_alerts_short_group_padded_with_empty_slots():

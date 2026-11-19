@@ -35,7 +35,7 @@ from ui.tables import (
     render_borrow_table,
     render_top_devices_table,
 )
-from utils.helpers import esc, previous_window, reference_today, time_filter_records
+from utils.helpers import esc, format_date, previous_window, reference_today, time_filter_records
 
 #: Kết quả thống kê rỗng khi bộ lọc không trả về phiếu nào (giữ nguyên key
 #: như bản gốc để phần render phía dưới không phải xử lý đặc biệt).
@@ -58,6 +58,48 @@ _EMPTY_STATS: Dict[str, Any] = {
     "overdue_days": [],
     "lost_ids": [],
 }
+
+
+#: Số phiếu "sắp đến hạn" tối đa hiển thị trên Tổng quan.
+DUE_SOON_LIMIT = 5
+
+
+def render_due_soon_list(
+    rows: List[Dict[str, Any]],
+    devices_by_id: Dict[str, Dict[str, Any]],
+    borrowers_by_id: Dict[str, Dict[str, Any]],
+    hidden: int = 0,
+) -> None:
+    """Danh sách gọn phiếu sắp đến hạn: mã phiếu · thiết bị · người mượn · còn N ngày."""
+    if not rows:
+        st.markdown(
+            '<div class="table-footnote">Không có phiếu nào sắp đến hạn trong bộ lọc hiện tại.</div>',
+            unsafe_allow_html=True,
+        )
+        return
+    entries = []
+    for row in rows:
+        device_id = str(row.get("device_id", "")).strip()
+        borrower_id = str(row.get("borrower_id", "")).strip()
+        device = str(devices_by_id.get(device_id, {}).get("device_name", "") or device_id)
+        borrower = borrowers_by_id.get(borrower_id, {})
+        who = str(borrower.get("name", "") or borrower_id)
+        phone = str(borrower.get("phone", "") or "").strip()
+        days_left = int(row.get("days_left", 0) or 0)
+        left_text = "Hạn hôm nay" if days_left == 0 else f"Còn {days_left} ngày"
+        detail = f"{who}" + (f" · {phone}" if phone else "") + f" · hạn {format_date(row.get('due_date'))}"
+        entries.append(
+            f'<li class="rank-item due-soon-item">'
+            f'<div class="rank-name"><span><strong>{esc(str(row.get("borrow_id", "")))}</strong> · '
+            f"{esc(device)}</span>"
+            f'<span class="due-soon-detail">{esc(detail)}</span></div>'
+            f'<span class="status-badge st-{"danger" if days_left == 0 else "warning"}">'
+            f'<span class="status-dot" aria-hidden="true"></span>{esc(left_text)}</span></li>'
+        )
+    more = (
+        f'<div class="table-footnote">… và {hidden} phiếu khác.</div>' if hidden else ""
+    )
+    st.markdown(f'<ul class="rank-list">{"".join(entries)}</ul>{more}', unsafe_allow_html=True)
 
 
 def render(analysis: Dict[str, Any]) -> None:
@@ -252,8 +294,9 @@ def render(analysis: Dict[str, Any]) -> None:
     quick_left, quick_mid_left, quick_mid_right, quick_right = st.columns(4, gap="medium")
     with quick_left:
         st.button(
-            "+ Phiếu mượn",
+            "Tạo phiếu mượn",
             key="quick_borrowing",
+            icon=":material/add_circle:",
             on_click=goto_page,
             args=("borrowing",),
             width="stretch",
@@ -261,8 +304,9 @@ def render(analysis: Dict[str, Any]) -> None:
         )
     with quick_mid_left:
         st.button(
-            "+ Thiết bị",
+            "Thêm thiết bị",
             key="quick_equipment",
+            icon=":material/devices:",
             on_click=goto_page,
             args=("equipment",),
             width="stretch",
@@ -272,6 +316,7 @@ def render(analysis: Dict[str, Any]) -> None:
         st.button(
             "Xem cảnh báo",
             key="quick_alerts",
+            icon=":material/notifications:",
             on_click=goto_page,
             args=("alerts",),
             width="stretch",
@@ -281,6 +326,7 @@ def render(analysis: Dict[str, Any]) -> None:
         st.button(
             "Xuất báo cáo",
             key="quick_reports",
+            icon=":material/description:",
             on_click=goto_page,
             args=("reports",),
             width="stretch",
@@ -303,7 +349,7 @@ def render(analysis: Dict[str, Any]) -> None:
             with st.container(border=True):
                 card_header(
                     "Hoạt động mượn thiết bị",
-                    "Tổng lượt mượn tích luỹ theo tháng từ ngày mượn của phiếu.",
+                    "Số lượt mượn mỗi tháng theo ngày mượn của phiếu.",
                 )
                 monthly = stats.get("borrows_by_month") or stat_mod.borrows_by_month(filtered_records)
                 render_trend_area(monthly, stats)
@@ -364,6 +410,24 @@ def render(analysis: Dict[str, Any]) -> None:
                 width="stretch",
                 help="Mở trang Cảnh báo để xử lý.",
             )
+
+    # ------------------------------------------------------------------
+    # "Sắp đến hạn" — nhắc trả TRƯỚC khi phiếu thành quá hạn.
+    # ------------------------------------------------------------------
+    due_soon = validators.find_due_soon_records(filtered_records, today)
+    with st.container(border=True):
+        card_header(
+            f"Sắp đến hạn trả ({validators.DUE_SOON_DAYS} ngày tới)",
+            "Phiếu đang mượn có hạn trả từ hôm nay đến "
+            f"{validators.DUE_SOON_DAYS} ngày tới — nên nhắc người mượn trước.",
+            chip=str(len(due_soon)),
+        )
+        render_due_soon_list(
+            due_soon[:DUE_SOON_LIMIT],
+            stats.get("devices_by_id", {}),
+            stats.get("borrowers_by_id", {}),
+            hidden=max(len(due_soon) - DUE_SOON_LIMIT, 0),
+        )
 
     # ------------------------------------------------------------------
     # Phân tích theo nhóm (8) + tỉ lệ (4): loại thiết bị cạnh gauge/util.

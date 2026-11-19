@@ -33,7 +33,7 @@ from ui.app_shell import (
     render_data_error,
 )
 from ui.header import render_topbar
-from ui.sidebar import page_label, render_sidebar
+from ui.sidebar import page_label, page_section, render_sidebar
 from ui.states import render_loading
 
 #: Bảng điều phối: slug page -> hàm render của module tương ứng.
@@ -74,7 +74,7 @@ def render_app() -> None:
     )
 
     render_sidebar(active=page, counts=counts, data_ok=not has_error(analysis))
-    render_topbar(context=page_label(page), alert_count=alert_count)
+    render_topbar(context=page_label(page), alert_count=alert_count, section=page_section(page))
 
     if has_error(analysis):
         if page != "csv":

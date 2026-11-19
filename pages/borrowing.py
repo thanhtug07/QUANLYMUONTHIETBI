@@ -184,28 +184,32 @@ def _render_card_actions(
     selecting_all = bool(st.session_state.get(SELECT_ALL_KEY, False))
     page_ids = [str(row.get("Mã phiếu", "")).strip() for row in page_rows if str(row.get("Mã phiếu", "")).strip()]
 
-    cols = st.columns(3, gap="small")
-    cols[0].button(
-        "↓ Mới nhất: Bật" if newest_first else "↓ Mới nhất",
-        key="borrow_sort_toggle",
-        on_click=_toggle_sort,
-        help="Bật: ngày mượn gần nhất lên đầu. Tắt: giữ thứ tự gốc. Luôn về trang 1.",
-    )
-    cols[1].button(
-        "Bỏ chọn trang này" if selecting_all else "Chọn tất cả trang này",
-        key="borrow_select_page",
-        on_click=_toggle_select_page,
-        disabled=not page_ids,
-        help="Chọn toàn bộ dòng đang hiển thị để xóa hàng loạt qua thanh thao tác bên dưới.",
-    )
-    cols[2].button(
-        f"Xóa tất cả ({len(all_rows)})",
-        key="borrow_delete_filtered",
-        on_click=_open_delete_all,
-        args=(all_rows, is_filtered),
-        disabled=not all_rows,
-        help="Xóa toàn bộ phiếu trong kết quả lọc hiện tại (có xác nhận, nêu rõ số lượng).",
-    )
+    # Nhóm nút an toàn (sắp xếp / chọn) gom bên trái; nút nguy hiểm "Xóa tất cả"
+    # tách hẳn sang phải với style danger (.st-key-borrow_delete_filtered) để
+    # không bị bấm nhầm khi đi cùng các nút thường.
+    with st.container(horizontal=True, vertical_alignment="center", gap="small", key="borrow_card_actions"):
+        st.button(
+            "↓ Mới nhất: Bật" if newest_first else "↓ Mới nhất",
+            key="borrow_sort_toggle",
+            on_click=_toggle_sort,
+            help="Bật: ngày mượn gần nhất lên đầu. Tắt: giữ thứ tự gốc. Luôn về trang 1.",
+        )
+        st.button(
+            "Bỏ chọn trang này" if selecting_all else "Chọn tất cả trang này",
+            key="borrow_select_page",
+            on_click=_toggle_select_page,
+            disabled=not page_ids,
+            help="Chọn toàn bộ dòng đang hiển thị để xóa hàng loạt qua thanh thao tác bên dưới.",
+        )
+        st.space("stretch")
+        st.button(
+            f"Xóa {'kết quả lọc' if is_filtered else 'tất cả'} ({len(all_rows)})",
+            key="borrow_delete_filtered",
+            on_click=_open_delete_all,
+            args=(all_rows, is_filtered),
+            disabled=not all_rows,
+            help="Xóa toàn bộ phiếu trong kết quả lọc hiện tại (có xác nhận, nêu rõ số lượng).",
+        )
 
     if selecting_all:
         if not page_ids:

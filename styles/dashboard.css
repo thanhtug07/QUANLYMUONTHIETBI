@@ -181,6 +181,11 @@ svg { max-width: 100%; }
 }
 
 .app-topbar .brand { display: flex; align-items: center; gap: var(--spacing-md); }
+/* Breadcrumb "Nhóm › Trang" thay cho brand/user lặp lại với sidebar. */
+.breadcrumb { display: flex; align-items: center; gap: var(--spacing-sm); font-size: var(--text-sm); min-width: 0; }
+.breadcrumb .crumb { color: var(--color-text-muted); font-weight: 600; white-space: nowrap; }
+.breadcrumb .crumb.current { color: var(--color-text); font-weight: 700; font-size: var(--text-base); }
+.breadcrumb .crumb-sep { color: var(--color-text-muted); }
 
 .brand-mark {
   width: 34px;
@@ -406,6 +411,45 @@ svg { max-width: 100%; }
   filter: brightness(0.9);
 }
 
+/* Nút "Xóa tất cả" của bảng phiếu mượn: viền + chữ đỏ (danger) để tách
+   biệt rõ với các nút thao tác thường cạnh bên. */
+.st-key-borrow_delete_filtered [data-testid="stButton"] button,
+.st-key-borrow_delete_filtered button {
+  color: var(--st-danger-text);
+  border-color: var(--st-danger-border);
+  background: var(--color-surface);
+}
+.st-key-borrow_delete_filtered button p { color: var(--st-danger-text) !important; }
+.st-key-borrow_delete_filtered button:hover:not(:disabled) {
+  background: var(--st-danger-bg);
+  border-color: var(--st-danger-text);
+  color: var(--st-danger-text);
+}
+
+/* Hàng thao tác nhanh (Tổng quan): nền tint nhẹ + icon để phân biệt với
+   ô nhập liệu viền trắng của bộ lọc. */
+[class*="st-key-quick_"] [data-testid="stButton"] button {
+  background: var(--color-primary-tint);
+  border-color: transparent;
+  min-height: 42px;
+}
+[class*="st-key-quick_"] [data-testid="stButton"] button:hover {
+  background: var(--color-accent-tint);
+  border-color: var(--color-accent-tint-border);
+}
+
+/* Danh sách "Sắp đến hạn" (Tổng quan): tên + dòng phụ người mượn/SĐT. */
+.rank-list .due-soon-item .rank-name {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  flex: 1 1 auto;
+  text-align: left;
+}
+.rank-list .due-soon-item .rank-name > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.due-soon-detail { font-size: var(--text-xs); color: var(--color-text-muted); }
+.due-soon-item .status-badge { flex: 0 0 auto; }
+
 /* ---------- 06. KPI CARDS ---------- */
 .kpi-grid {
   display: grid;
@@ -514,7 +558,13 @@ svg { max-width: 100%; }
   white-space: nowrap;
 }
 
-.kpi-badge.attention { background: var(--color-primary); color: var(--color-surface); }
+.kpi-badge.attention {
+  /* Cần xử lý = tín hiệu nguy cơ: dùng tông danger của STATUS thay cho
+     primary đặc (trước đây trông như nút bấm chính, lệch ý nghĩa). */
+  background: var(--st-danger-bg);
+  color: var(--st-danger-text);
+  border: 1px solid var(--st-danger-border);
+}
 
 .kpi-value { font-variant-numeric: tabular-nums; }
 
@@ -692,7 +742,8 @@ svg { max-width: 100%; }
 .table-footnote { margin-top: var(--spacing-sm); }
 /* Nút "Đã xử lý": viền/chữ xanh lá, nền trong suốt — nhẹ hơn nút chính.
    Xuống dòng thay vì ellipsis khi card hẹp (desktop vẫn 1 dòng). */
-[class*="st-key-handled_"] [data-testid="stButton"] button {
+[class*="st-key-handled_"] [data-testid="stButton"] button,
+[class*="st-key-return_"] [data-testid="stButton"] button {
   min-height: 30px;
   font-size: 13px;
   white-space: normal;
@@ -700,7 +751,8 @@ svg { max-width: 100%; }
   border-color: var(--st-success-border);
   color: var(--st-success-text);
 }
-[class*="st-key-handled_"] [data-testid="stButton"] button:hover:not(:disabled) {
+[class*="st-key-handled_"] [data-testid="stButton"] button:hover:not(:disabled),
+[class*="st-key-return_"] [data-testid="stButton"] button:hover:not(:disabled) {
   background: var(--st-success-bg);
   border-color: var(--st-success-border);
   color: var(--st-success-text);
@@ -952,6 +1004,15 @@ svg { max-width: 100%; }
   color: var(--color-text-soft);
   font-weight: 600;
 }
+/* Nội dung bên trong nút (div > p) mặc định căn giữa: ép căn trái để icon +
+   nhãn thẳng hàng như menu điều hướng thật. */
+[data-testid="stSidebar"] [data-testid="stButton"] button > div,
+[data-testid="stSidebar"] [data-testid="stButton"] button [data-testid="stMarkdownContainer"] {
+  justify-content: flex-start;
+  width: 100%;
+  text-align: left;
+}
+[data-testid="stSidebar"] [data-testid="stButton"] button p { text-align: left; }
 [data-testid="stSidebar"] [data-testid="stButton"] button:hover {
   background-color: var(--color-surface);
   border-color: var(--color-border);
