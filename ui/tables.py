@@ -16,9 +16,9 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 import pandas as pd
 import streamlit as st
 
-from styles import tokens
 from ui.badges import status_badge, status_variant
 from ui.states import render_empty_state, render_no_results
+from ui.theme import status_colors
 from utils.helpers import esc, format_date, icon, status_label
 
 #: Cột hiển thị của bảng phiếu mượn ở trang Tổng quan.
@@ -131,7 +131,7 @@ def _status_cell_css(value: Any) -> str:
     variant = status_variant(str(value or ""))
     if variant == "neutral":
         return ""
-    palette = tokens.STATUS[variant]
+    palette = status_colors()[variant]
     return f"color: {palette['text']}; background-color: {palette['bg']}; font-weight: 600;"
 
 

@@ -17,6 +17,7 @@ import streamlit as st
 from streamlit.delta_generator import DeltaGenerator
 
 from styles import tokens
+from ui.theme import is_dark
 from utils.helpers import esc
 
 STYLES_DIR = Path(__file__).resolve().parents[1] / "styles"
@@ -52,8 +53,11 @@ def inject_global_styles(extra_css: str = "") -> None:
     except OSError:
         mtime_ns = 0
     base_css = _compiled_base_css(mtime_ns)
+    # Chế độ tối: ghi đè biến màu SAU khối :root gốc; toàn bộ dashboard.css
+    # dùng var(--...) nên tự đổi theo, không cần CSS riêng cho dark.
+    dark_css = tokens.dark_css_variables() if is_dark() else ""
     st.markdown(
-        f"<style>{base_css}\n{extra_css}</style>",
+        f"<style>{base_css}\n{dark_css}\n{extra_css}</style>",
         unsafe_allow_html=True,
     )
 
@@ -124,3 +128,41 @@ def analytics_grid() -> Tuple[DeltaGenerator, DeltaGenerator]:
 def two_column_grid() -> Tuple[DeltaGenerator, DeltaGenerator]:
     """Grid hai cột bằng nhau (dùng cho các panel phụ như xếp hạng)."""
     return st.columns(2, gap="medium")
+
+
+#: Script phím tắt: "/" focus ô tìm kiếm đầu tiên của trang, "Esc" thoát ô
+#: đang gõ. Gắn listener MỘT lần (cờ window.__qlShortcuts) dù Streamlit rerun.
+_SHORTCUT_JS = """
+<script>
+(function () {
+  if (window.__qlShortcuts) { return; }
+  window.__qlShortcuts = true;
+  function isTyping(el) {
+    if (!el) { return false; }
+    var tag = (el.tagName || "").toLowerCase();
+    return tag === "input" || tag === "textarea" || tag === "select" || el.isContentEditable;
+  }
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "/" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      if (isTyping(document.activeElement)) { return; }
+      var inputs = document.querySelectorAll('[data-testid="stMain"] [data-testid="stTextInput"] input');
+      for (var i = 0; i < inputs.length; i++) {
+        if (inputs[i].offsetParent !== null && !inputs[i].disabled) {
+          event.preventDefault();
+          inputs[i].focus();
+          inputs[i].select();
+          return;
+        }
+      }
+    } else if (event.key === "Escape" && isTyping(document.activeElement)) {
+      document.activeElement.blur();
+    }
+  });
+})();
+</script>
+"""
+
+
+def inject_shortcuts() -> None:
+    """Gắn phím tắt bàn phím toàn app ("/" tìm kiếm, "Esc" thoát ô nhập)."""
+    st.html(_SHORTCUT_JS, unsafe_allow_javascript=True)

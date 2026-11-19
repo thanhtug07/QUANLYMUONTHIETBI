@@ -156,6 +156,113 @@ EASING_STANDARD: Final[str] = "cubic-bezier(0.2, 0, 0.2, 1)"
 EASING_OUT: Final[str] = "cubic-bezier(0, 0, 0.2, 1)"
 
 
+# ----------------------------------------------------------------------
+# DARK MODE — cùng tên token, giá trị cho nền tối
+# ----------------------------------------------------------------------
+#: Palette tối: giữ đúng vai trò từng màu của palette sáng (bg/surface/text/
+#: primary/accent/border) nhưng đảo độ sáng; primary sáng hơn để đủ tương
+#: phản trên nền tối.
+DARK_COLORS: Final[Dict[str, str]] = {
+    "bg": "#0F1720",
+    "surface": "#17212C",
+    "surface-alt": "#1C2733",
+    "text": "#E6EAF0",
+    "primary": "#5AA9F5",
+    "accent": "#3D9DF3",
+    "border": "#2C3B4B",
+}
+DARK_TEXT_MUTED: Final[str] = "rgba(230, 234, 240, 0.62)"
+DARK_TEXT_SOFT: Final[str] = "rgba(230, 234, 240, 0.80)"
+DARK_PRIMARY_TINT: Final[str] = "rgba(90, 169, 245, 0.14)"
+DARK_ACCENT_TINT: Final[str] = "rgba(61, 157, 243, 0.20)"
+DARK_ACCENT_TINT_BORDER: Final[str] = "rgba(61, 157, 243, 0.45)"
+
+DARK_STATUS: Final[Dict[str, Dict[str, str]]] = {
+    "success": {
+        "text": "#5BCB8A",
+        "bg": "rgba(91, 203, 138, 0.12)",
+        "border": "rgba(91, 203, 138, 0.35)",
+        "dot": "#5BCB8A",
+        "base": "#3FB872",
+    },
+    "info": {
+        "text": "#7CBBF7",
+        "bg": "rgba(90, 169, 245, 0.12)",
+        "border": "rgba(90, 169, 245, 0.40)",
+        "dot": "#5AA9F5",
+        "base": "#5AA9F5",
+    },
+    "warning": {
+        "text": "#E3A73B",
+        "bg": "rgba(227, 167, 59, 0.12)",
+        "border": "rgba(227, 167, 59, 0.38)",
+        "dot": "#E3A73B",
+        "base": "#D99A2B",
+    },
+    "danger": {
+        "text": "#F07A6E",
+        "bg": "rgba(240, 122, 110, 0.12)",
+        "border": "rgba(240, 122, 110, 0.38)",
+        "dot": "#F07A6E",
+        "base": "#E5604F",
+    },
+    "neutral": {
+        "text": "rgba(230, 234, 240, 0.80)",
+        "bg": "#1C2733",
+        "border": "#2C3B4B",
+        "dot": "rgba(230, 234, 240, 0.45)",
+        "base": "#2C3B4B",
+    },
+}
+
+
+def palette(dark: bool = False) -> Dict[str, str]:
+    """
+    Màu theo chế độ hiển thị (cho code Python: Altair, icon data-URI...).
+
+    Khoá: bg, surface, surface-alt, text, primary, accent, border,
+    text-muted, text-soft.
+    """
+    if dark:
+        return {**DARK_COLORS, "text-muted": DARK_TEXT_MUTED, "text-soft": DARK_TEXT_SOFT}
+    return {**COLORS, "text-muted": TEXT_MUTED, "text-soft": TEXT_SOFT}
+
+
+def status_palette(dark: bool = False) -> Dict[str, Dict[str, str]]:
+    """Bảng màu trạng thái theo chế độ hiển thị."""
+    return DARK_STATUS if dark else STATUS
+
+
+def dark_css_variables() -> str:
+    """
+    Khối `:root { ... }` GHI ĐÈ các biến màu cho chế độ tối.
+
+    Chỉ đổi màu/shadow; typography, spacing, radius, motion giữ nguyên.
+    """
+    values: Dict[str, str] = {
+        "--color-bg": DARK_COLORS["bg"],
+        "--color-surface": DARK_COLORS["surface"],
+        "--color-surface-alt": DARK_COLORS["surface-alt"],
+        "--color-text": DARK_COLORS["text"],
+        "--color-primary": DARK_COLORS["primary"],
+        "--color-accent": DARK_COLORS["accent"],
+        "--color-border": DARK_COLORS["border"],
+        "--color-text-muted": DARK_TEXT_MUTED,
+        "--color-text-soft": DARK_TEXT_SOFT,
+        "--color-primary-tint": DARK_PRIMARY_TINT,
+        "--color-accent-tint": DARK_ACCENT_TINT,
+        "--color-accent-tint-border": DARK_ACCENT_TINT_BORDER,
+        "--shadow-subtle": "0 1px 2px rgba(0, 0, 0, 0.35)",
+        "--shadow-card": "0 2px 10px rgba(0, 0, 0, 0.35)",
+        "--shadow-menu": "0 4px 12px rgba(0, 0, 0, 0.45)",
+    }
+    values.update(
+        {f"--st-{name}-{prop}": value for name, props in DARK_STATUS.items() for prop, value in props.items()}
+    )
+    lines = "\n".join(f"  {name}: {value};" for name, value in values.items())
+    return f":root {{\n{lines}\n}}"
+
+
 def css_variables() -> str:
     """
     Sinh khối `:root { --token: value; }` để dashboard.css dùng lại.

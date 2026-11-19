@@ -48,6 +48,8 @@ def render_topbar(context: str = "", alert_count: int = 0, section: str = "") ->
         f"{context_html}"
         f"</div>"
         f'<div class="topbar-right">'
+        f'<span class="shortcut-hint" title="Nhấn / để tìm kiếm trên trang này">'
+        f'Nhấn <kbd>/</kbd> để tìm kiếm</span>'
         f'<span class="{bell_cls}" role="img" aria-label="Thông báo: {esc(bell_title)}" title="{esc(bell_title)}">'
         f'{icon("bell", 17)}{badge_html}</span>'
         f"</div></div>",

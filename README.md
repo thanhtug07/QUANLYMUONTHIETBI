@@ -31,6 +31,15 @@ Không dùng database, không dùng FastAPI / Flask / Django.
 - **CRUD đầy đủ** cho Phiếu mượn / Thiết bị / Người mượn (thêm — sửa — xóa với
   dialog + bước xác nhận), ghi trực tiếp vào `data/*.csv` qua `data_store.py`.
   Mọi dữ liệu nhập đều được kiểm tra bằng chính `validators.py` trước khi ghi.
+- **Nhắc sắp đến hạn**: Tổng quan liệt kê phiếu có hạn trả trong 3 ngày tới
+  (`validators.find_due_soon_records`).
+- **Trả nhanh từ Cảnh báo**: phiếu quá hạn có nút "✓ Đã trả" ghi thẳng vào CSV.
+- **Hành vi mượn** trong cửa sổ chi tiết thiết bị / người mượn: số lần trả
+  đúng hạn / trễ, tỷ lệ đúng hạn và cờ "hay trả trễ" (`pages/common.borrow_behavior`).
+- **Xuất Excel (.xlsx)** 8 sheet ở trang Báo cáo (`utils/excel_export.py`).
+- **Chế độ sáng / tối**: theo hệ điều hành, đổi trong menu ⋮ → Settings → Theme
+  (bảng màu tối ở `styles/tokens.py`).
+- **Phím tắt**: `/` nhảy tới ô tìm kiếm của trang, `Esc` thoát ô đang gõ.
 
 ---
 
@@ -262,7 +271,8 @@ Kết quả: báo cáo được ghi vào `output\report.txt`.
 container không có ổ đĩa bền vững — mọi thao tác CRUD ghi vào `data/*.csv`
 chỉ tồn tại tạm thời và **mất đi khi app ngủ/restart/redeploy** (app sẽ trở lại
 đúng dữ liệu trong repo). Cách khắc phục theo mức tăng dần:
-| Cách | Chịu được | Độ phức tạp |
+
+| Cách | Chịu được | Độ phức tạp |
 |---|---|---|
 | Chạy local (`streamlit run app.py`) | mọi thứ, persist vĩnh viễn | 0 |
 | Export CSV từ mỗi trang CRUD sau khi nhập liệu | mất khi app restart | 0 |

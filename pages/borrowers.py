@@ -23,6 +23,8 @@ from pages.common import (
     borrower_detail_rows,
     borrower_rows,
     count_by,
+    behavior_summary_html,
+    borrow_behavior,
     recent_history_html,
     render_first_run_guide,
 )
@@ -275,6 +277,8 @@ def _dialog_view(payload: Dict[str, Any], analysis: Dict[str, Any]) -> None:
         "borrower_id",
         borrower_id,
     )
+    behavior = borrow_behavior(records, "borrower_id", borrower_id, analysis.get("today"))
+    history = behavior_summary_html(behavior, "người mượn") + history
     detail_dialog(
         f"Người mượn {borrower_id}",
         borrower_detail_rows(

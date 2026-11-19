@@ -18,6 +18,7 @@ import statistics as stat_mod
 import streamlit as st
 
 from pages.common import device_status_counts
+from utils.excel_export import build_workbook
 from ui.charts import render_category_chart, render_monthly_trend, render_status_donut
 from ui.layout import card_header, page_header, two_column_grid
 from ui.metrics import MetricCard, render_kpi_grid
@@ -63,6 +64,14 @@ def _render_warnings(warnings: Sequence[str]) -> None:
             f'<div class="table-footnote">Còn {remaining} cảnh báo khác.</div>',
             unsafe_allow_html=True,
         )
+
+
+def _excel_bytes(analysis: Dict[str, Any]) -> bytes:
+    """Workbook Excel của báo cáo (lỗi dựng file -> bytes rỗng, không crash trang)."""
+    try:
+        return build_workbook(analysis)
+    except Exception:  # pragma: no cover - phòng thiếu openpyxl khi triển khai
+        return b""
 
 
 def render(analysis: Dict[str, Any]) -> None:
@@ -152,16 +161,28 @@ def render(analysis: Dict[str, Any]) -> None:
     # Gọn trong expander vì nội dung dài mà số liệu đã có ở các chart phía trên.
     # ------------------------------------------------------------------
     report_text = str(analysis.get("report_text", "")).strip()
-    if report_text:
+    with st.container(horizontal=True, gap="small", key="report_downloads"):
         st.download_button(
-            "Tải báo cáo tổng hợp (.txt)",
-            data=("\ufeff" + report_text).encode("utf-8"),
-            file_name="report.txt",
-            mime="text/plain",
-            key="report_download_txt",
+            "Tải báo cáo Excel (.xlsx)",
+            data=_excel_bytes(analysis),
+            file_name="bao_cao_muon_thiet_bi.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="report_download_xlsx",
+            type="primary",
+            icon=":material/table_view:",
             width="content",
-            help="Tải nội dung báo cáo 8 phần dạng văn bản (.txt).",
+            help="8 sheet: Tổng hợp, Phiếu mượn, Thiết bị, Người mượn, Quá hạn, Theo loại, Top thiết bị, Top người mượn.",
         )
+        if report_text:
+            st.download_button(
+                "Tải báo cáo tổng hợp (.txt)",
+                data=("\ufeff" + report_text).encode("utf-8"),
+                file_name="report.txt",
+                mime="text/plain",
+                key="report_download_txt",
+                width="content",
+                help="Tải nội dung báo cáo 8 phần dạng văn bản (.txt).",
+            )
     with st.expander("Báo cáo tổng hợp (văn bản)", expanded=False):
         if report_text:
             st.code(report_text, language=None)

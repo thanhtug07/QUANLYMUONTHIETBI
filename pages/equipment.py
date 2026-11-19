@@ -28,6 +28,8 @@ from pages.common import (
     count_by,
     device_detail_rows,
     device_rows,
+    behavior_summary_html,
+    borrow_behavior,
     recent_history_html,
     render_first_run_guide,
 )
@@ -276,6 +278,8 @@ def _dialog_view(payload: Dict[str, Any], analysis: Dict[str, Any]) -> None:
         "device_id",
         device_id,
     )
+    behavior = borrow_behavior(records, "device_id", device_id, analysis.get("today"))
+    history = behavior_summary_html(behavior, "thiết bị") + history
     detail_dialog(
         f"Thiết bị {device_id}",
         device_detail_rows(device, borrow_count),

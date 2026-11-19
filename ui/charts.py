@@ -19,6 +19,8 @@ import streamlit as st
 
 from styles import tokens
 from ui.states import render_empty_state
+from ui.theme import color as _c
+from ui.theme import status_colors as _status
 from utils.helpers import esc, month_label, status_label
 
 #: Chiều cao biểu đồ (gọn để vừa viewport, vẫn đủ đọc số liệu).
@@ -71,12 +73,12 @@ def _status_color_encoding(field: str, labels: Sequence[str]) -> alt.Color:
 
 def _axis_labels(**overrides: object) -> alt.Axis:
     base = {
-        "labelColor": tokens.COLOR_TEXT,
+        "labelColor": _c("text"),
         "labelFontSize": 12,
-        "titleColor": tokens.COLOR_TEXT,
+        "titleColor": _c("text"),
         "titleFontSize": 12,
-        "domainColor": tokens.COLOR_BORDER,
-        "tickColor": tokens.COLOR_BORDER,
+        "domainColor": _c("border"),
+        "tickColor": _c("border"),
     }
     base.update(overrides)
     return alt.Axis(**base)  # type: ignore[arg-type]
@@ -84,7 +86,7 @@ def _axis_labels(**overrides: object) -> alt.Axis:
 
 def _value_axis(**overrides: object) -> alt.Axis:
     base = {
-        "gridColor": tokens.COLOR_BORDER,
+        "gridColor": _c("border"),
         "gridOpacity": 0.8,
         "domain": False,
         "ticks": False,
@@ -132,12 +134,12 @@ def render_category_chart(rows: Sequence[Tuple[str, int]], footer_total: int) ->
         ],
     )
     bars = base.mark_bar(
-        color=tokens.COLOR_PRIMARY,
+        color=_c("primary"),
         cornerRadiusTopRight=3,
         cornerRadiusBottomRight=3,
     )
     labels = base.mark_text(
-        align="left", dx=4, fontSize=12, fontWeight=600, color=tokens.COLOR_TEXT
+        align="left", dx=4, fontSize=12, fontWeight=600, color=_c("text")
     ).encode(text="Số lượt:Q")
     chart = (
         (bars + labels)
@@ -180,7 +182,7 @@ def render_status_donut(counts: Dict[str, int], center_label: str) -> None:
 
     donut = (
         alt.Chart(frame)
-        .mark_arc(innerRadius=58, outerRadius=92, stroke=tokens.COLOR_SURFACE, strokeWidth=2)
+        .mark_arc(innerRadius=58, outerRadius=92, stroke=_c("surface"), strokeWidth=2)
         .encode(
             theta=alt.Theta("Số lượng:Q", stack=True),
             color=alt.Color(
@@ -189,7 +191,7 @@ def render_status_donut(counts: Dict[str, int], center_label: str) -> None:
                 legend=alt.Legend(
                     orient="bottom",
                     title=None,
-                    labelColor=tokens.COLOR_TEXT,
+                    labelColor=_c("text"),
                     labelFontSize=12,
                     symbolSize=110,
                     direction="horizontal",
@@ -204,12 +206,12 @@ def render_status_donut(counts: Dict[str, int], center_label: str) -> None:
     )
     center = (
         alt.Chart(pd.DataFrame({"text": [center_label]}))
-        .mark_text(fontSize=26, fontWeight="bold", color=tokens.COLOR_TEXT, dy=2)
+        .mark_text(fontSize=26, fontWeight="bold", color=_c("text"), dy=2)
         .encode(text="text:N")
     )
     caption = (
         alt.Chart(pd.DataFrame({"text": ["thiết bị"]}))
-        .mark_text(fontSize=12, color=tokens.TEXT_MUTED, dy=22)
+        .mark_text(fontSize=12, color=_c("text-muted"), dy=22)
         .encode(text="text:N")
     )
     chart = (
@@ -262,15 +264,15 @@ def render_trend_area(
         ],
     )
     area = base.mark_area(
-        color=tokens.COLOR_ACCENT,
+        color=_c("accent"),
         opacity=0.16,
-        line={"color": tokens.COLOR_PRIMARY, "size": 2.5},
+        line={"color": _c("primary"), "size": 2.5},
         interpolate="monotone",
     )
     points = base.mark_point(
-        filled=True, size=55, color=tokens.COLOR_PRIMARY, stroke=tokens.COLOR_SURFACE, strokeWidth=1.5
+        filled=True, size=55, color=_c("primary"), stroke=_c("surface"), strokeWidth=1.5
     )
-    labels = base.mark_text(dy=-12, fontSize=12, fontWeight=600, color=tokens.COLOR_TEXT).encode(
+    labels = base.mark_text(dy=-12, fontSize=12, fontWeight=600, color=_c("text")).encode(
         text="Lượt mượn:Q"
     )
     chart = (
@@ -332,11 +334,11 @@ def render_weekday_bars(rows: Sequence[Tuple[str, int]]) -> None:
     bars = base.mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
         color=alt.condition(
             alt.datum["Số lượt"] == peak,
-            alt.value(tokens.STATUS["info"]["base"]),
-            alt.value(tokens.COLOR_BORDER),
+            alt.value(_status()["info"]["base"]),
+            alt.value(_c("border")),
         )
     )
-    labels = base.mark_text(dy=-8, fontSize=12, fontWeight="bold", color=tokens.COLOR_TEXT).encode(
+    labels = base.mark_text(dy=-8, fontSize=12, fontWeight="bold", color=_c("text")).encode(
         text="Số lượt:Q"
     )
     chart = (
@@ -367,15 +369,15 @@ def render_rate_gauge(rate: float, caption: str) -> None:
     except (TypeError, ValueError):
         value = 0.0
     if value >= 80.0:
-        fill_color = tokens.STATUS["success"]["base"]
+        fill_color = _status()["success"]["base"]
     elif value >= 50.0:
-        fill_color = tokens.STATUS["warning"]["base"]
+        fill_color = _status()["warning"]["base"]
     else:
-        fill_color = tokens.STATUS["danger"]["base"]
+        fill_color = _status()["danger"]["base"]
     track = (
         alt.Chart(pd.DataFrame({"frac": [1.0]}))
         .mark_arc(innerRadius=58, outerRadius=86, cornerRadius=4,
-                  color=tokens.COLOR_BORDER, opacity=0.55)
+                  color=_c("border"), opacity=0.55)
         .encode(theta=alt.Theta("frac:Q", scale=alt.Scale(domain=[0, 1], range=[0, 3.14159])))
     )
     fill = (
@@ -386,7 +388,7 @@ def render_rate_gauge(rate: float, caption: str) -> None:
     )
     number = (
         alt.Chart(pd.DataFrame({"text": [f"{value:.1f}%".replace(".", ",")]}))
-        .mark_text(fontSize=30, fontWeight="bold", color=tokens.COLOR_TEXT, dy=6)
+        .mark_text(fontSize=30, fontWeight="bold", color=_c("text"), dy=6)
         .encode(text="text:N")
     )
     chart = (
@@ -498,9 +500,9 @@ def render_monthly_trend(rows: Sequence[Tuple[str, int]], footer_total: int) -> 
     chart = (
         alt.Chart(frame)
         .mark_line(
-            color=tokens.COLOR_PRIMARY,
+            color=_c("primary"),
             strokeWidth=2.5,
-            point=alt.OverlayMarkDef(color=tokens.COLOR_PRIMARY, size=55, filled=True),
+            point=alt.OverlayMarkDef(color=_c("primary"), size=55, filled=True),
         )
         .encode(
             x=alt.X("Tháng:N", title=None, sort=None, axis=_axis_labels(labelAngle=0, grid=False)),

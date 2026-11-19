@@ -30,3 +30,30 @@ def test_due_soon_does_not_mutate_input():
     records = [_rec("PM1", "2026-09-17")]
     validators.find_due_soon_records(records, TODAY)
     assert "days_left" not in records[0]
+
+
+def test_borrow_behavior_counts_and_late_flag():
+    from pages.common import behavior_summary_html, borrow_behavior
+
+    records = [
+        {"borrow_id": "A", "borrower_id": "SV1", "due_date": "2026-09-01", "return_date": "2026-08-30", "status": "returned"},
+        {"borrow_id": "B", "borrower_id": "SV1", "due_date": "2026-09-01", "return_date": "2026-09-05", "status": "returned"},
+        {"borrow_id": "C", "borrower_id": "SV1", "due_date": "2026-09-10", "return_date": "", "status": "borrowed"},
+        {"borrow_id": "D", "borrower_id": "SV2", "due_date": "2026-09-30", "return_date": "", "status": "borrowed"},
+    ]
+    b = borrow_behavior(records, "borrower_id", "sv1", TODAY)
+    assert (b["total"], b["returned"], b["on_time"], b["late"]) == (3, 2, 1, 1)
+    assert (b["active"], b["overdue"]) == (1, 1)
+    assert b["on_time_rate"] == 50.0
+    # 1 lần trễ + 1 phiếu đang quá hạn = 2 nhưng tỷ lệ 50% chưa dưới ngưỡng
+    assert b["late_flag"] is False
+
+    records.append(
+        {"borrow_id": "E", "borrower_id": "SV1", "due_date": "2026-08-01", "return_date": "2026-08-09", "status": "returned"}
+    )
+    b2 = borrow_behavior(records, "borrower_id", "SV1", TODAY)
+    assert b2["late_flag"] is True
+    assert "thường trả trễ" in behavior_summary_html(b2, "người mượn")
+
+    empty = borrow_behavior(records, "borrower_id", "SV9", TODAY)
+    assert empty["total"] == 0 and empty["on_time_rate"] is None and not empty["late_flag"]

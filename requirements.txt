@@ -2,6 +2,7 @@
 streamlit>=1.45  # frontend duy nhất; >=1.45 vì dùng width="stretch" + st.dialog
 pandas>=2.0      # dựng DataFrame cho st.dataframe / export CSV (ui/tables.py)
 altair>=5.0      # biểu đồ dashboard/báo cáo (ui/charts.py)
+openpyxl>=3.1    # xuất báo cáo Excel .xlsx (utils/excel_export.py)
 
 # Test (chạy bộ kiểm thử trong tests/ bằng `python -m pytest tests -q`)
 pytest>=8.0

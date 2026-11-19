@@ -374,6 +374,99 @@ def file_meta_rows(key: str, row_count: int, columns: Sequence[str], modified: O
     ]
 
 
+#: Ngưỡng gắn cờ "hay trả trễ": ít nhất N lần trễ VÀ tỷ lệ đúng hạn dưới X%.
+LATE_FLAG_MIN_COUNT = 2
+LATE_FLAG_MAX_RATE = 50.0
+
+
+def borrow_behavior(
+    records: Sequence[Dict[str, Any]],
+    filter_field: str,
+    filter_id: str,
+    today: Optional[date] = None,
+) -> Dict[str, Any]:
+    """
+    Tóm tắt hành vi mượn của MỘT thiết bị / người mượn (hàm thuần, test được).
+
+    Trả về: total, returned, on_time, late, active, overdue, lost,
+    on_time_rate (% trên số phiếu đã trả, None nếu chưa trả phiếu nào) và
+    late_flag (True khi trễ >= LATE_FLAG_MIN_COUNT lần và tỷ lệ đúng hạn
+    < LATE_FLAG_MAX_RATE). Cách tính đúng hạn giống
+    statistics.on_time_return_rate (return_date <= due_date).
+    """
+    target = str(filter_id).strip().upper()
+    matched = [r for r in records if str(r.get(filter_field, "")).strip().upper() == target]
+    overdue_ids = {
+        str(r.get("borrow_id", "")) for r in validators.find_overdue_records(list(matched), today)
+    }
+    returned = on_time = late = active = lost = 0
+    for row in matched:
+        status = str(row.get("status", "")).strip()
+        if status == "lost":
+            lost += 1
+            continue
+        ret = parse_date(row.get("return_date"))
+        if status == "returned" or ret:
+            returned += 1
+            due = parse_date(row.get("due_date"))
+            if ret and due and ret <= due:
+                on_time += 1
+            else:
+                late += 1
+        else:
+            active += 1
+    rate = round(100.0 * on_time / returned, 1) if returned else None
+    overdue = len(overdue_ids)
+    # Phiếu đang quá hạn cũng tính là một lần trễ khi gắn cờ.
+    late_total = late + overdue
+    late_flag = late_total >= LATE_FLAG_MIN_COUNT and (rate is None or rate < LATE_FLAG_MAX_RATE)
+    return {
+        "total": len(matched),
+        "returned": returned,
+        "on_time": on_time,
+        "late": late,
+        "active": active,
+        "overdue": overdue,
+        "lost": lost,
+        "on_time_rate": rate,
+        "late_flag": late_flag,
+    }
+
+
+def behavior_summary_html(behavior: Dict[str, Any], subject: str = "người mượn") -> str:
+    """Dải chip tóm tắt hành vi mượn + cảnh báo "hay trả trễ" (nếu có)."""
+    rate = behavior.get("on_time_rate")
+    rate_text = "—" if rate is None else f"{rate:.1f}%".replace(".", ",")
+    chips = [
+        ("neutral", "Tổng lượt", str(behavior.get("total", 0))),
+        ("success", "Trả đúng hạn", str(behavior.get("on_time", 0))),
+        ("warning", "Trả trễ", str(behavior.get("late", 0))),
+        ("info", "Đang mượn", str(behavior.get("active", 0))),
+        ("danger", "Đang quá hạn", str(behavior.get("overdue", 0))),
+        ("neutral", "Tỷ lệ đúng hạn", rate_text),
+    ]
+    chip_html = "".join(
+        f'<span class="stat-chip st-{variant}"><span class="status-dot" aria-hidden="true"></span>'
+        f'<span class="stat-chip-label">{esc(label)}</span><strong>{esc(value)}</strong></span>'
+        for variant, label, value in chips
+    )
+    flag_html = ""
+    if behavior.get("late_flag"):
+        if behavior.get("returned"):
+            verb = "thường bị trả trễ" if subject == "thiết bị" else "thường trả trễ"
+        else:
+            verb = f"đang có {int(behavior.get('overdue', 0))} phiếu quá hạn chưa trả"
+        flag_html = (
+            '<div class="behavior-flag" role="note">'
+            f'{status_badge("Cần xử lý")}<span>{esc(subject.capitalize())} này {esc(verb)} '
+            "— nên nhắc hạn trả sớm hoặc rút ngắn thời gian mượn.</span></div>"
+        )
+    return (
+        '<div class="form-section"><span class="form-section-title">Hành vi mượn</span></div>'
+        f'<div class="stat-chip-row">{chip_html}</div>{flag_html}'
+    )
+
+
 def recent_history_html(
     records: Sequence[Dict[str, Any]],
     devices_by_id: Dict[str, Dict[str, Any]],

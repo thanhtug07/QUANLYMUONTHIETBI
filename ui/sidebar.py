@@ -22,6 +22,8 @@ import streamlit as st
 
 from styles import tokens
 from ui.app_shell import goto_page
+from ui.layout import inject_shortcuts
+from ui.theme import is_dark
 from utils.helpers import esc, icon, icon_data_uri
 
 #: Khoá session_state của widget nav (dùng để style theo từng mục).
@@ -84,8 +86,8 @@ def page_section(slug: str) -> str:
     return ""
 
 
-@functools.lru_cache(maxsize=16)
-def _nav_icon_css(active: str) -> str:
+@functools.lru_cache(maxsize=32)
+def _nav_icon_css(active: str, dark: bool = False) -> str:
     """
     CSS động cho icon của từng mục nav.
 
@@ -94,7 +96,8 @@ def _nav_icon_css(active: str) -> str:
     """
     rules: List[str] = []
     for item in all_items():
-        color = tokens.COLOR_PRIMARY if item.slug == active else tokens.TEXT_SOFT
+        colors = tokens.palette(dark)
+        color = colors["primary"] if item.slug == active else colors["text-soft"]
         uri = icon_data_uri(item.icon_name, color)
         # Tiền tố stSidebar + !important: rule nền chung của button
         # (`[data-testid="stButton"] button { background: ... }`, kể cả :hover)
@@ -159,7 +162,7 @@ def render_sidebar(
 
     with st.sidebar:
         st.markdown(
-            f"<style>{_nav_icon_css(active)}</style>"
+            f"<style>{_nav_icon_css(active, is_dark())}</style>"
             f'<div class="side-brand">'
             f'<span class="brand-mark">{icon("box", 19)}</span>'
             f'<span class="side-brand-text">'
@@ -206,3 +209,5 @@ def render_sidebar(
             "</span></div>",
             unsafe_allow_html=True,
         )
+        # Phím tắt gắn ở sidebar để thẻ script không tạo khoảng trống ở main.
+        inject_shortcuts()
