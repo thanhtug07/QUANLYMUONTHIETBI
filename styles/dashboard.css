@@ -108,7 +108,7 @@ svg { max-width: 100%; }
 }
 [data-testid="stExpandSidebarButton"]:hover {
   border-color: var(--color-primary) !important;
-  box-shadow: 0 2px 6px rgba(49, 51, 63, 0.10);
+  box-shadow: 0 2px 6px rgba(0, 84, 163, 0.10);
 }
 [data-testid="stExpandSidebarButton"] svg { color: var(--color-primary) !important; }
 [data-testid="stHeader"] { background: transparent; }
@@ -202,6 +202,9 @@ svg { max-width: 100%; }
   text-align: center;
 }
 @media (max-width: 760px), (hover: none) { .shortcut-hint { display: none; } }
+/* Điện thoại: chừa chỗ cho nút mở sidebar (») của Streamlit ở góc trái trên,
+   trước đây đè lên logo topbar. */
+@media (max-width: 760px) { .app-topbar { padding-left: 56px !important; } }
 
 .brand-mark {
   width: 34px;
@@ -362,6 +365,7 @@ svg { max-width: 100%; }
 [data-testid="stDateInput"] [data-testid="stDateInputField"] { background: transparent !important; }
 
 [data-testid="stButton"] button,
+[data-testid="stDownloadButton"] button,
 [data-testid="baseButton-secondary"] {
   min-height: 38px;
   background: var(--color-surface);
@@ -376,6 +380,7 @@ svg { max-width: 100%; }
     color var(--motion-fast) var(--easing-standard);
 }
 [data-testid="stButton"] button:hover,
+[data-testid="stDownloadButton"] button:hover,
 [data-testid="baseButton-secondary"]:hover {
   background: var(--color-surface-alt);
   border-color: var(--color-primary);
@@ -507,7 +512,7 @@ svg { max-width: 100%; }
 .kpi-card:hover {
   transform: translateY(-2px);
   border-color: var(--color-accent);
-  box-shadow: 0 3px 10px rgba(49, 51, 63, 0.08);
+  box-shadow: 0 3px 10px rgba(0, 84, 163, 0.08);
 }
 
 .kpi-head { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-sm); }
@@ -802,6 +807,11 @@ svg { max-width: 100%; }
   flex-wrap: wrap;
   row-gap: var(--spacing-xs);
 }
+/* Nút "Sau" bám mép phải cột (trước đây nằm lửng giữa cột phải). */
+[class*="st-key-pagination_"] [data-testid="stColumn"]:last-child [data-testid="stElementContainer"] {
+  align-self: flex-end;
+  width: auto !important;
+}
 
 /* ---------- 10c. EQUAL-HEIGHT ROWS (2 chart Tổng quan + 2 card Cảnh báo) -----
    Streamlit columns co theo nội dung nên card ngắn hơn để lại khoảng trống.
@@ -864,9 +874,13 @@ svg { max-width: 100%; }
 
 /* ---------- 11. SIDEBAR ---------- */
 [data-testid="stSidebar"] {
-  background: var(--color-surface-alt);
-  border-right: 1px solid var(--color-border);
+  background: var(--sidebar-bg);
+  border-right: 0;
 }
+/* Vùng header mặc định của sidebar (nút thu gọn) chiếm ~6rem trống: thu gọn. */
+[data-testid="stSidebarHeader"] { height: auto; min-height: 0; padding: var(--spacing-md) var(--spacing-md) 0; }
+[data-testid="stSidebarCollapseButton"] button,
+[data-testid="stSidebarCollapseButton"] svg { color: var(--sidebar-text) !important; }
 /* Chỉ ép width khi sidebar đang MỞ để không phá animation/thu gọn của Streamlit. */
 [data-testid="stSidebar"][aria-expanded="true"] {
   width: 258px !important;
@@ -884,16 +898,19 @@ svg { max-width: 100%; }
 }
 .side-brand .brand-mark { width: 36px; height: 36px; flex: 0 0 36px; }
 .side-brand-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
-.side-brand-name { font-size: 16px; font-weight: 700; color: var(--color-text); }
-.side-brand-sub { font-size: 12px; font-weight: 400; color: var(--color-text-muted); }
+.side-brand-name { font-size: 16px; font-weight: 700; color: var(--sidebar-text); }
+.side-brand-sub { font-size: 12px; font-weight: 400; color: var(--sidebar-text-muted); }
+/* Logo trong sidebar: ô trắng, icon xanh (đảo màu so với logo topbar). */
+.side-brand .brand-mark { background: var(--sidebar-text); color: var(--color-primary); }
 
+/* Tiêu đề nhóm menu: chữ thường, không in hoa giãn chữ; đủ khoảng cách dưới
+   để không dính vào mục đầu tiên (trước đây bị chồng lên nút đang mở). */
 .side-section {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-  margin: var(--spacing-lg) var(--spacing-sm) var(--spacing-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sidebar-text-muted);
+  margin: var(--spacing-xl) var(--spacing-sm) var(--spacing-sm);
+  padding-bottom: var(--spacing-xs);
 }
 
 .side-nav { display: flex; flex-direction: column; gap: 2px; }
@@ -930,6 +947,12 @@ svg { max-width: 100%; }
 }
 
 .side-pill-row { padding: var(--spacing-md) var(--spacing-sm) 0; }
+[data-testid="stSidebar"] .pill {
+  background: var(--sidebar-hover);
+  border-color: var(--sidebar-line);
+  color: var(--sidebar-text);
+}
+[data-testid="stSidebar"] .pill .dot { background: var(--st-success-base); }
 .pill {
   display: inline-flex;
   align-items: center;
@@ -950,7 +973,7 @@ svg { max-width: 100%; }
   gap: var(--spacing-xs);
   margin: var(--spacing-md) var(--spacing-sm) 0;
   padding-top: var(--spacing-md);
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--sidebar-line);
 }
 .side-meta-row {
   display: flex;
@@ -958,9 +981,9 @@ svg { max-width: 100%; }
   justify-content: space-between;
   gap: var(--spacing-sm);
   font-size: 12px;
-  color: var(--color-text-muted);
+  color: var(--sidebar-text-muted);
 }
-.side-meta-row strong { font-weight: 700; color: var(--color-text); font-variant-numeric: tabular-nums; }
+.side-meta-row strong { font-weight: 700; color: var(--sidebar-text); font-variant-numeric: tabular-nums; }
 
 /* ---------- 12. STATES ---------- */
 .state-block {
@@ -1031,9 +1054,10 @@ svg { max-width: 100%; }
   background-position: 15px center;
   background-size: 17px 17px;
   border-color: transparent;
-  color: var(--color-text-soft);
+  color: var(--sidebar-text-soft);
   font-weight: 600;
 }
+[data-testid="stSidebar"] [data-testid="stButton"] button p { color: var(--sidebar-text-soft); }
 /* Nội dung bên trong nút (div > p) mặc định căn giữa: ép căn trái để icon +
    nhãn thẳng hàng như menu điều hướng thật. */
 [data-testid="stSidebar"] [data-testid="stButton"] button > div,
@@ -1044,16 +1068,20 @@ svg { max-width: 100%; }
 }
 [data-testid="stSidebar"] [data-testid="stButton"] button p { text-align: left; }
 [data-testid="stSidebar"] [data-testid="stButton"] button:hover {
-  background-color: var(--color-surface);
-  border-color: var(--color-border);
-  color: var(--color-primary);
+  background-color: var(--sidebar-hover) !important;
+  border-color: transparent;
 }
+[data-testid="stSidebar"] [data-testid="stButton"] button:hover p { color: var(--sidebar-text); }
+[data-testid="stSidebar"] [data-testid="stButton"] button:focus-visible { outline-color: var(--sidebar-text); }
 [data-testid="stSidebar"] button[kind="primary"],
-[data-testid="stSidebar"] [data-testid="stBaseButton-primary"] {
-  background-color: var(--color-primary-tint) !important;
-  border-color: var(--color-accent-tint-border) !important;
-  box-shadow: inset 3px 0 0 var(--color-primary);
+[data-testid="stSidebar"] [data-testid="stBaseButton-primary"],
+[data-testid="stSidebar"] button[kind="primary"]:hover,
+[data-testid="stSidebar"] [data-testid="stBaseButton-primary"]:hover {
+  background-color: var(--sidebar-text) !important;
+  border-color: var(--sidebar-text) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
   color: var(--color-primary) !important;
+  filter: none;
 }
 [data-testid="stSidebar"] button[kind="primary"] p,
 [data-testid="stSidebar"] [data-testid="stBaseButton-primary"] p {
@@ -1066,7 +1094,7 @@ svg { max-width: 100%; }
   margin: var(--spacing-sm) var(--spacing-sm) 0;
   font-size: 11px;
   font-weight: 600;
-  color: var(--color-text-muted);
+  color: var(--sidebar-text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1077,14 +1105,14 @@ svg { max-width: 100%; }
   gap: var(--spacing-sm);
   margin: var(--spacing-lg) var(--spacing-sm) 0;
   padding-top: var(--spacing-lg);
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--sidebar-line);
 }
 
-.side-user .user-avatar { width: 30px; height: 30px; flex: 0 0 30px; }
+.side-user .user-avatar { width: 30px; height: 30px; flex: 0 0 30px; background: var(--sidebar-text); color: var(--color-primary); }
 
 .side-user-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
-.side-user-name { font-size: 13px; font-weight: 700; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.side-user-sub { font-size: var(--text-xs); font-weight: 400; color: var(--color-text-muted); }
+.side-user-name { font-size: 13px; font-weight: 700; color: var(--sidebar-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.side-user-sub { font-size: var(--text-xs); font-weight: 400; color: var(--sidebar-text-muted); }
 
 /* ---------- 14. PAGE CHIP (ngữ cảnh trang trên topbar) ---------- */
 .page-chip {
@@ -1570,7 +1598,7 @@ svg { max-width: 100%; }
 
 [data-testid="stButton"] button:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(49, 51, 63, 0.10);
+  box-shadow: 0 2px 6px rgba(0, 84, 163, 0.10);
 }
 
 [data-testid="stButton"] button:active:not(:disabled) {

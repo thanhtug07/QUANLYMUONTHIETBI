@@ -53,6 +53,11 @@ def _data_signature() -> Tuple[Tuple[str, int], ...]:
     return tuple(signature)
 
 
+def data_signature() -> Tuple[Tuple[str, int], ...]:
+    """Chữ ký dữ liệu hiện tại (dùng làm khoá cache cho dữ liệu dẫn xuất, vd. file Excel)."""
+    return _data_signature()
+
+
 @st.cache_data(show_spinner=False)
 def _run_pipeline_cached(signature: Tuple[Tuple[str, int], ...]) -> Dict[str, Any]:
     """Chạy pipeline và cache theo `signature` (tham số chỉ để tạo khoá cache)."""

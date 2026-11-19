@@ -18,6 +18,7 @@ import statistics as stat_mod
 import streamlit as st
 
 from pages.common import device_status_counts
+from ui.app_shell import data_signature
 from utils.excel_export import build_workbook
 from ui.charts import render_category_chart, render_monthly_trend, render_status_donut
 from ui.layout import card_header, page_header, two_column_grid
@@ -66,10 +67,16 @@ def _render_warnings(warnings: Sequence[str]) -> None:
         )
 
 
+@st.cache_data(show_spinner=False, max_entries=4)
+def _excel_cached(signature: Any, _analysis: Dict[str, Any]) -> bytes:
+    """Cache workbook theo chữ ký dữ liệu CSV (không dựng lại ở mỗi lần rerun)."""
+    return build_workbook(_analysis)
+
+
 def _excel_bytes(analysis: Dict[str, Any]) -> bytes:
     """Workbook Excel của báo cáo (lỗi dựng file -> bytes rỗng, không crash trang)."""
     try:
-        return build_workbook(analysis)
+        return _excel_cached(data_signature(), analysis)
     except Exception:  # pragma: no cover - phòng thiếu openpyxl khi triển khai
         return b""
 

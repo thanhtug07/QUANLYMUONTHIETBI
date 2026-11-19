@@ -110,7 +110,7 @@ def render(analysis: Dict[str, Any]) -> None:
     today: date = analysis.get("today") or reference_today(base_records)
 
     page_header(
-        "Dashboard",
+        "Tổng quan",
         "Theo dõi tình trạng thiết bị và hoạt động mượn.",
         meta=(
             f"{len(base_devices)} thiết bị · {len(base_borrowers)} người mượn · "

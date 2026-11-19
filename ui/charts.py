@@ -122,8 +122,10 @@ def render_category_chart(rows: Sequence[Tuple[str, int]], footer_total: int) ->
             sort=None,
             # labelOverlap=False: luôn hiện ĐỦ tên loại (Vega mặc định ẩn bớt
             # nhãn khi thanh mỏng); chiều cao đã tính đủ ~24px mỗi thanh.
+            # minExtent: chừa đủ bề rộng cho nhãn dài nhất ("Cáp - Điều khiển"),
+            # tránh Vega cắt chữ ở mép trái.
             axis=_axis_labels(
-                labelLimit=140, labelOverlap=False, labelPadding=6,
+                labelLimit=140, labelOverlap=False, labelPadding=6, minExtent=120,
                 grid=False, ticks=False, domain=False,
             ),
         ),
@@ -323,8 +325,15 @@ def render_weekday_bars(rows: Sequence[Tuple[str, int]]) -> None:
         {"Ngày": [label for label, _ in rows], "Số lượt": counts}
     )
     base = alt.Chart(frame).encode(
+        # labelAngle=0: nhãn "Thứ 2"... ngắn nên nằm ngang (Vega tự xoay dọc
+        # khi cột hẹp, khó đọc và tốn chiều cao).
         x=alt.X("Ngày:N", title=None, sort=None,
-                axis=_axis_labels(labelLimit=80, grid=False)),
+                # Nhãn rút gọn T2…CN trên trục (tooltip vẫn ghi đủ) để 7 cột hẹp
+                # không chồng chữ "Thứ 7Chủ nhật".
+                axis=_axis_labels(
+                    labelLimit=80, labelAngle=0, grid=False,
+                    labelExpr="replace(replace(datum.label, 'Thứ ', 'T'), 'Chủ nhật', 'CN')",
+                )),
         y=alt.Y("Số lượt:Q", title=None, axis=_value_axis()),
         tooltip=[
             alt.Tooltip("Ngày:N", title="Ngày"),

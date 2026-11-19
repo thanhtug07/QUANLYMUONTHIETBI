@@ -26,7 +26,7 @@ def render_topbar(context: str = "", alert_count: int = 0, section: str = "") ->
         crumbs.append(f'<span class="crumb">{esc(section)}</span>')
     if context:
         crumbs.append(f'<span class="crumb current" aria-current="page">{esc(context)}</span>')
-    sep = f'<span class="crumb-sep" aria-hidden="true">›</span>'
+    sep = '<span class="crumb-sep" aria-hidden="true">›</span>'
     context_html = (
         f'<nav class="breadcrumb" aria-label="Breadcrumb">{sep.join(crumbs)}</nav>' if crumbs else ""
     )

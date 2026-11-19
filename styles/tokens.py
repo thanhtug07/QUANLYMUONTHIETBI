@@ -9,7 +9,7 @@ màu sắc, typography, spacing, radius, shadow.
 - CSS (`styles/dashboard.css`) KHÔNG hardcode giá trị trực quan: mọi rule
   dùng biến CSS được sinh bởi `css_variables()`.
 
-Bảng màu bám đúng palette của project (7 màu). Các biến "tint" bên dưới
+Bảng màu: nền TRẮNG, xanh dương #0054A3 là màu chủ đạo (7 màu). Các biến "tint" bên dưới
 KHÔNG phải màu mới: chúng là chính màu palette với alpha thấp, dùng cho nền
 icon chip, trạng thái active/hover — không tạo màu ngoài hệ thống.
 """
@@ -21,13 +21,13 @@ from typing import Dict, Final
 # MÀU SẮC — palette duy nhất được phép sử dụng
 # ----------------------------------------------------------------------
 COLORS: Final[Dict[str, str]] = {
-    "bg": "#F0F2F6",           # nền trang
+    "bg": "#FFFFFF",           # nền trang: trắng
     "surface": "#FFFFFF",      # card / bề mặt chính
-    "surface-alt": "#FAFAFA",  # sidebar, nền phụ
-    "text": "#31333F",         # chữ chính
-    "primary": "#0054A3",      # xanh chính
+    "surface-alt": "#F4F8FD",  # nền phụ xanh rất nhạt (header bảng, hover)
+    "text": "#1B2A41",         # mực chữ xanh than (thay xám)
+    "primary": "#0054A3",      # xanh dương chủ đạo (sidebar, nút chính)
     "accent": "#3D9DF3",       # xanh nhấn
-    "border": "#C9DDF0",       # viền / đường kẻ
+    "border": "#D6E4F5",       # viền xanh nhạt
 }
 
 COLOR_BG: Final[str] = COLORS["bg"]
@@ -39,13 +39,22 @@ COLOR_ACCENT: Final[str] = COLORS["accent"]
 COLOR_BORDER: Final[str] = COLORS["border"]
 
 #: Chữ phụ = màu text với alpha (không thêm màu mới).
-TEXT_MUTED: Final[str] = "rgba(49, 51, 63, 0.62)"
-TEXT_SOFT: Final[str] = "rgba(49, 51, 63, 0.78)"
+TEXT_MUTED: Final[str] = "rgba(27, 42, 65, 0.70)"  # >= 4,5:1 cả trên nền trắng lẫn #F4F8FD
+TEXT_SOFT: Final[str] = "rgba(27, 42, 65, 0.80)"
 
 #: Nền nhấn = primary / accent với alpha thấp.
 PRIMARY_TINT: Final[str] = "rgba(0, 84, 163, 0.08)"
 ACCENT_TINT: Final[str] = "rgba(61, 157, 243, 0.14)"
 ACCENT_TINT_BORDER: Final[str] = "rgba(61, 157, 243, 0.38)"
+
+#: Sidebar = khối xanh dương đặc (điểm nhấn duy nhất của giao diện): chữ
+#: trắng, mục đang mở là ô trắng chữ xanh. Các giá trị dưới là trắng với alpha.
+SIDEBAR_BG: Final[str] = COLOR_PRIMARY
+SIDEBAR_TEXT: Final[str] = "#FFFFFF"
+SIDEBAR_TEXT_SOFT: Final[str] = "rgba(255, 255, 255, 0.82)"
+SIDEBAR_TEXT_MUTED: Final[str] = "rgba(255, 255, 255, 0.78)"  # 5,1:1 trên #0054A3 (WCAG AA)
+SIDEBAR_HOVER: Final[str] = "rgba(255, 255, 255, 0.12)"
+SIDEBAR_LINE: Final[str] = "rgba(255, 255, 255, 0.20)"
 
 # ----------------------------------------------------------------------
 # TYPOGRAPHY
@@ -90,9 +99,9 @@ SPACING: Final[Dict[str, str]] = {
     "3xl": "32px",
 }
 
-SHADOW_SUBTLE: Final[str] = "0 1px 2px rgba(49, 51, 63, 0.05)"
-SHADOW_CARD: Final[str] = "0 2px 10px rgba(49, 51, 63, 0.07)"
-SHADOW_MENU: Final[str] = "0 4px 12px rgba(49, 51, 63, 0.10)"
+SHADOW_SUBTLE: Final[str] = "0 1px 2px rgba(0, 84, 163, 0.05)"
+SHADOW_CARD: Final[str] = "0 1px 3px rgba(0, 84, 163, 0.06), 0 4px 14px rgba(0, 84, 163, 0.05)"
+SHADOW_MENU: Final[str] = "0 6px 18px rgba(0, 84, 163, 0.12)"
 
 # ----------------------------------------------------------------------
 # STATUS SEMANTIC — màu trạng thái duy nhất được phép dùng
@@ -131,11 +140,11 @@ STATUS: Final[Dict[str, Dict[str, str]]] = {
         "base": "#CE4B3C",
     },
     "neutral": {  # chưa xác định / không hoạt động
-        "text": "rgba(49, 51, 63, 0.78)",
-        "bg": "#FAFAFA",
-        "border": "#C9DDF0",
-        "dot": "rgba(49, 51, 63, 0.45)",
-        "base": "#C9DDF0",
+        "text": "rgba(27, 42, 65, 0.80)",
+        "bg": "#F4F8FD",
+        "border": "#D6E4F5",
+        "dot": "rgba(27, 42, 65, 0.45)",
+        "base": "#D6E4F5",
     },
 }
 
@@ -283,6 +292,12 @@ def css_variables() -> str:
         "--color-primary-tint": PRIMARY_TINT,
         "--color-accent-tint": ACCENT_TINT,
         "--color-accent-tint-border": ACCENT_TINT_BORDER,
+        "--sidebar-bg": SIDEBAR_BG,
+        "--sidebar-text": SIDEBAR_TEXT,
+        "--sidebar-text-soft": SIDEBAR_TEXT_SOFT,
+        "--sidebar-text-muted": SIDEBAR_TEXT_MUTED,
+        "--sidebar-hover": SIDEBAR_HOVER,
+        "--sidebar-line": SIDEBAR_LINE,
         "--font-family": FONT_FAMILY,
         "--shadow-subtle": SHADOW_SUBTLE,
         "--shadow-card": SHADOW_CARD,

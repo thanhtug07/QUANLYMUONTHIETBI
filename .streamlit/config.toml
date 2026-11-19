@@ -1,20 +1,12 @@
-# Hai chế độ sáng / tối: mặc định theo hệ điều hành, người dùng đổi trong
-# menu ⋮ -> Settings -> Theme. Giá trị khớp styles/tokens.py (COLORS và
-# DARK_COLORS); CSS tự đổi theo qua ui/theme.is_dark().
+# Giao diện cố định SÁNG: nền trắng, xanh dương chủ đạo (khớp
+# styles/tokens.COLORS). Bảng màu tối vẫn có trong tokens.py nhưng không bật.
 [theme]
-font = "sans serif"
-
-[theme.light]
+base = "light"
 primaryColor = "#0054A3"
-backgroundColor = "#F0F2F6"
-secondaryBackgroundColor = "#FFFFFF"
-textColor = "#31333F"
-
-[theme.dark]
-primaryColor = "#5AA9F5"
-backgroundColor = "#0F1720"
-secondaryBackgroundColor = "#17212C"
-textColor = "#E6EAF0"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F8FD"
+textColor = "#1B2A41"
+font = "sans serif"
 
 [server]
 headless = true
@@ -23,5 +15,7 @@ headless = true
 gatherUsageStats = false
 
 [client]
+# Ẩn nút Deploy / menu dev của Streamlit (từng chồng lên topbar trên điện thoại).
+toolbarMode = "minimal"
 # Navigation tự vẽ bằng component riêng (ui/sidebar.py)
 showSidebarNavigation = false

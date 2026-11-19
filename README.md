@@ -37,8 +37,10 @@ Không dùng database, không dùng FastAPI / Flask / Django.
 - **Hành vi mượn** trong cửa sổ chi tiết thiết bị / người mượn: số lần trả
   đúng hạn / trễ, tỷ lệ đúng hạn và cờ "hay trả trễ" (`pages/common.borrow_behavior`).
 - **Xuất Excel (.xlsx)** 8 sheet ở trang Báo cáo (`utils/excel_export.py`).
-- **Chế độ sáng / tối**: theo hệ điều hành, đổi trong menu ⋮ → Settings → Theme
-  (bảng màu tối ở `styles/tokens.py`).
+- **Giao diện nền trắng, xanh dương chủ đạo**: sidebar khối xanh `#0054A3`,
+  trang nền trắng; khoá chế độ sáng trong `.streamlit/config.toml`. Màu chữ phụ
+  đạt tương phản WCAG AA (≥ 4,5:1). Bảng màu tối vẫn có sẵn trong
+  `styles/tokens.py` nếu muốn bật lại.
 - **Phím tắt**: `/` nhảy tới ô tìm kiếm của trang, `Esc` thoát ô đang gõ.
 
 ---

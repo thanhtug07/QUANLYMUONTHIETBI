@@ -23,11 +23,11 @@ import data_store
 import main
 import statistics as stat_mod
 import validators
-from cleaners import BORROWER_COLUMNS, DEVICE_COLUMNS, RECORD_COLUMNS
+from cleaners import DEVICE_COLUMNS, RECORD_COLUMNS
 from pages import alerts as alerts_page
 from pages import borrowers as borrowers_page
 from pages import common as common_page
-from ui import app_shell, badges
+from ui import badges
 
 TODAY = date(2026, 9, 16)
 

@@ -17,7 +17,6 @@ from pathlib import Path
 
 import cleaners
 import data_store
-import statistics as stat_mod
 import validators
 from cleaners import (
     BORROWER_COLUMNS,

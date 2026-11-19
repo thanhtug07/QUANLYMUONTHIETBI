@@ -96,8 +96,10 @@ def _nav_icon_css(active: str, dark: bool = False) -> str:
     """
     rules: List[str] = []
     for item in all_items():
+        # Sidebar nền xanh: mục đang mở là ô trắng -> icon xanh primary; các
+        # mục còn lại icon trắng mờ trên nền xanh.
         colors = tokens.palette(dark)
-        color = colors["primary"] if item.slug == active else colors["text-soft"]
+        color = colors["primary"] if item.slug == active else tokens.SIDEBAR_TEXT_SOFT
         uri = icon_data_uri(item.icon_name, color)
         # Tiền tố stSidebar + !important: rule nền chung của button
         # (`[data-testid="stButton"] button { background: ... }`, kể cả :hover)
